@@ -25,21 +25,29 @@ export default function AdminStudentInfo() {
     queryKey: ['students-info'],
     queryFn: async () => {
       const all = await base44.entities.UserProfile.list('-created_date', 500);
-      return all.filter(p => p.role === 'student');
-    }
+      return (all || []).filter(p => p.role === 'student');
+    },
+    initialData: []
   });
 
   const { data: users = [] } = useQuery({
     queryKey: ['users'],
-    queryFn: () => base44.entities.User.list('-created_date', 500),
+    queryFn: async () => {
+      try {
+        return await base44.entities.User.list('-created_date', 500) || [];
+      } catch (error) {
+        return [];
+      }
+    },
     enabled: students.length > 0,
-    throwOnError: false
+    throwOnError: false,
+    initialData: []
   });
 
-  // ✅ Auto-select student from URL
+  // ✅ FIX: Auto-select student from URL with null checks
   useEffect(() => {
-    if (studentIdFromUrl && students.length > 0 && !selectedStudent) {
-      const student = students.find(s => s.id === studentIdFromUrl);
+    if (studentIdFromUrl && students && students.length > 0 && !selectedStudent) {
+      const student = students.find(s => s && s.id === studentIdFromUrl);
       if (student) {
         setSelectedStudent(student);
       }
@@ -54,7 +62,6 @@ export default function AdminStudentInfo() {
       queryClient.invalidateQueries({ queryKey: ['students-info'] });
       toast.success('✅ Đã cập nhật thông tin!');
       setIsEditing(false);
-      // Reload selected student
       setTimeout(async () => {
         const updated = await base44.entities.UserProfile.filter({ id: selectedStudent.id });
         if (updated && updated.length > 0) {
@@ -67,10 +74,12 @@ export default function AdminStudentInfo() {
     }
   });
 
-  const filteredStudents = students.filter(s => {
+  // ✅ FIX: Safe filtering with null checks
+  const filteredStudents = (students || []).filter(s => {
+    if (!s) return false;
     if (!searchTerm) return true;
     const search = searchTerm.toLowerCase();
-    const user = users.find(u => u.id === s.user_id);
+    const user = (users || []).find(u => u && u.id === s.user_id);
     const name = user?.full_name || s.user_code || '';
     return name.toLowerCase().includes(search) || 
            s.user_code?.toLowerCase().includes(search) ||
@@ -79,7 +88,7 @@ export default function AdminStudentInfo() {
 
   const handleEdit = (student) => {
     setSelectedStudent(student);
-    setFormData(student);
+    setFormData(student || {});
     setIsEditing(true);
   };
 
@@ -87,12 +96,15 @@ export default function AdminStudentInfo() {
     updateMutation.mutate(formData);
   };
 
+  // ✅ FIX: Safe user lookup
   const getStudentName = (student) => {
-    const user = users.find(u => u.id === student.user_id);
+    if (!student) return 'N/A';
+    const user = (users || []).find(u => u && u.id === student.user_id);
     return user?.full_name || student.user_code || 'N/A';
   };
 
   const calculateCompletion = (student) => {
+    if (!student) return 0;
     const fields = [
       'date_of_birth', 'gender', 'phone', 'address',
       'father_name', 'father_phone', 'mother_name', 'mother_phone'
@@ -150,6 +162,7 @@ export default function AdminStudentInfo() {
                   </div>
                 ) : (
                   filteredStudents.map((student, idx) => {
+                    if (!student) return null; // Added null check here
                     const completion = calculateCompletion(student);
                     const isSelected = selectedStudent?.id === student.id;
                     
@@ -174,7 +187,7 @@ export default function AdminStudentInfo() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="font-bold truncate">{getStudentName(student)}</p>
-                            <p className="text-xs text-gray-600">{student.user_code}</p>
+                            <p className="text-xs text-gray-600">{student.user_code || 'N/A'}</p>
                           </div>
                         </div>
                         <div className="flex items-center justify-between text-xs">
@@ -211,7 +224,7 @@ export default function AdminStudentInfo() {
                   <div className="flex items-center justify-between mb-4">
                     <div>
                       <h2 className="text-2xl font-bold">{getStudentName(selectedStudent)}</h2>
-                      <p className="text-gray-600">{selectedStudent.user_code}</p>
+                      <p className="text-gray-600">{selectedStudent.user_code || 'N/A'}</p>
                     </div>
                     <div className="flex gap-2">
                       {isEditing ? (
@@ -525,6 +538,12 @@ export default function AdminStudentInfo() {
                     </div>
                   </div>
                 )}
+
+                {/* New section from outline */}
+                <div className="bg-white rounded-2xl shadow-sm border p-6">
+                  <h3 className="font-bold text-lg mb-4">Thông tin chi tiết</h3>
+                  <p className="text-gray-600 text-sm">Vui lòng click "Chỉnh sửa" để cập nhật thông tin học sinh</p>
+                </div>
               </div>
             )}
           </div>
