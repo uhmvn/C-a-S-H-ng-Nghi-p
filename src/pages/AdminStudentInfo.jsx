@@ -1,7 +1,8 @@
-
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams, Link } from "react-router-dom";
+import { createPageUrl } from "@/utils";
 import AdminLayout from "@/components/AdminLayout";
 import { 
   User, Search, Edit2, Save, X, Phone, MapPin, Users,
@@ -9,7 +10,6 @@ import {
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { motion } from "framer-motion";
-import { useSearchParams } from "react-router-dom";
 
 export default function AdminStudentInfo() {
   const queryClient = useQueryClient();
@@ -44,7 +44,6 @@ export default function AdminStudentInfo() {
     initialData: []
   });
 
-  // ✅ FIX: Auto-select student from URL with null checks
   useEffect(() => {
     if (studentIdFromUrl && students && students.length > 0 && !selectedStudent) {
       const student = students.find(s => s && s.id === studentIdFromUrl);
@@ -74,7 +73,6 @@ export default function AdminStudentInfo() {
     }
   });
 
-  // ✅ FIX: Safe filtering with null checks
   const filteredStudents = (students || []).filter(s => {
     if (!s) return false;
     if (!searchTerm) return true;
@@ -96,7 +94,6 @@ export default function AdminStudentInfo() {
     updateMutation.mutate(formData);
   };
 
-  // ✅ FIX: Safe user lookup
   const getStudentName = (student) => {
     if (!student) return 'N/A';
     const user = (users || []).find(u => u && u.id === student.user_id);
@@ -120,13 +117,13 @@ export default function AdminStudentInfo() {
         
         <div className="mb-8">
           <div className="flex items-center gap-4 mb-4">
-            <a
-              href="/student-management"
+            <Link
+              to={createPageUrl("StudentManagement")}
               className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
             >
               <ArrowLeft className="w-5 h-5" />
               Quay lại
-            </a>
+            </Link>
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">👨‍👩‍👧‍👦 Thông Tin Học Sinh & Phụ Huynh</h1>
           <p className="text-gray-600">Quản lý thông tin cá nhân và gia đình học sinh</p>
@@ -162,7 +159,7 @@ export default function AdminStudentInfo() {
                   </div>
                 ) : (
                   filteredStudents.map((student, idx) => {
-                    if (!student) return null; // Added null check here
+                    if (!student) return null;
                     const completion = calculateCompletion(student);
                     const isSelected = selectedStudent?.id === student.id;
                     
@@ -242,10 +239,10 @@ export default function AdminStudentInfo() {
                           <button
                             onClick={handleSave}
                             disabled={updateMutation.isPending}
-                            className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl hover:bg-indigo-700"
+                            className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl hover:bg-indigo-700 disabled:opacity-50"
                           >
                             <Save className="w-5 h-5" />
-                            Lưu
+                            {updateMutation.isPending ? 'Đang lưu...' : 'Lưu'}
                           </button>
                         </>
                       ) : (
@@ -538,12 +535,6 @@ export default function AdminStudentInfo() {
                     </div>
                   </div>
                 )}
-
-                {/* New section from outline */}
-                <div className="bg-white rounded-2xl shadow-sm border p-6">
-                  <h3 className="font-bold text-lg mb-4">Thông tin chi tiết</h3>
-                  <p className="text-gray-600 text-sm">Vui lòng click "Chỉnh sửa" để cập nhật thông tin học sinh</p>
-                </div>
               </div>
             )}
           </div>

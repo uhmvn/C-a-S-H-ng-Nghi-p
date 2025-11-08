@@ -25,9 +25,9 @@ export default function AdminLayout({ children }) {
       title: 'Tổng quan',
       icon: LayoutDashboard,
       items: [
-        { icon: LayoutDashboard, label: 'Dashboard', path: '/admin-dashboard' },
-        { icon: BarChart3, label: 'Báo cáo', path: '/admin-reports' },
-        { icon: Bell, label: 'Thông báo', path: '/admin-notifications' },
+        { icon: LayoutDashboard, label: 'Dashboard', pageName: 'AdminDashboard' },
+        { icon: BarChart3, label: 'Báo cáo', pageName: 'AdminReports' },
+        { icon: Bell, label: 'Thông báo', pageName: 'AdminNotifications' },
       ]
     },
     {
@@ -35,12 +35,12 @@ export default function AdminLayout({ children }) {
       title: 'Quản lý',
       icon: Users,
       items: [
-        { icon: Users, label: 'Người dùng', path: '/admin-users' },
-        { icon: GraduationCap, label: 'Học sinh', path: '/student-management' },
-        { icon: UserCog, label: 'Thông tin HS', path: '/admin-student-info', badge: 'Mới' },
-        { icon: UsersRound, label: 'Giáo viên', path: '/teacher-management' },
-        { icon: Code, label: 'Mã truy cập', path: '/admin-code-management' },
-        { icon: ClipboardList, label: 'Kho mã', path: '/admin-code-inventory' },
+        { icon: Users, label: 'Người dùng', pageName: 'AdminUsers' },
+        { icon: GraduationCap, label: 'Học sinh', pageName: 'StudentManagement' },
+        { icon: UserCog, label: 'Thông tin HS', pageName: 'AdminStudentInfo', badge: 'Mới' },
+        { icon: UsersRound, label: 'Giáo viên', pageName: 'TeacherManagement' },
+        { icon: Code, label: 'Mã truy cập', pageName: 'AdminCodeManagement' },
+        { icon: ClipboardList, label: 'Kho mã', pageName: 'AdminCodeInventory' },
       ]
     },
     {
@@ -48,11 +48,11 @@ export default function AdminLayout({ children }) {
       title: 'Học vụ',
       icon: BookOpen,
       items: [
-        { icon: BookOpen, label: 'Học bạ', path: '/academic-records' },
-        { icon: FolderOpen, label: 'Cấu trúc học thuật', path: '/admin-academic-structure' },
-        { icon: UserCheck, label: 'Phân công giảng dạy', path: '/admin-teaching-assignments' },
-        { icon: Activity, label: 'Tiến độ học sinh', path: '/student-progress' },
-        { icon: BarChart3, label: 'Phân tích lớp', path: '/class-analytics' },
+        { icon: BookOpen, label: 'Học bạ', pageName: 'AcademicRecords' },
+        { icon: FolderOpen, label: 'Cấu trúc học thuật', pageName: 'AdminAcademicStructure' },
+        { icon: UserCheck, label: 'Phân công giảng dạy', pageName: 'AdminTeachingAssignments' },
+        { icon: Activity, label: 'Tiến độ học sinh', pageName: 'StudentProgress' },
+        { icon: BarChart3, label: 'Phân tích lớp', pageName: 'ClassAnalytics' },
       ]
     },
     {
@@ -60,10 +60,10 @@ export default function AdminLayout({ children }) {
       title: 'Tests & Tư vấn',
       icon: TestTube,
       items: [
-        { icon: TestTube, label: 'Quản lý Tests', path: '/admin-test-management' },
-        { icon: FileText, label: 'Kết quả Tests', path: '/admin-test-results' },
-        { icon: Calendar, label: 'Lịch hẹn', path: '/admin-appointments' },
-        { icon: Bell, label: 'Đặt lịch mới', path: '/booking-notifications' },
+        { icon: TestTube, label: 'Quản lý Tests', pageName: 'AdminTestManagement' },
+        { icon: FileText, label: 'Kết quả Tests', pageName: 'AdminTestResults' },
+        { icon: Calendar, label: 'Lịch hẹn', pageName: 'AdminAppointments' },
+        { icon: Bell, label: 'Đặt lịch mới', pageName: 'BookingNotifications' },
       ]
     },
     {
@@ -71,9 +71,9 @@ export default function AdminLayout({ children }) {
       title: 'Nội dung',
       icon: School,
       items: [
-        { icon: School, label: 'Trường học', path: '/admin-schools' },
-        { icon: ClipboardList, label: 'Loại trường', path: '/admin-school-types' },
-        { icon: FileText, label: 'Dịch vụ', path: '/admin-services' },
+        { icon: School, label: 'Trường học', pageName: 'AdminSchools' },
+        { icon: ClipboardList, label: 'Loại trường', pageName: 'AdminSchoolTypes' },
+        { icon: FileText, label: 'Dịch vụ', pageName: 'AdminServices' },
       ]
     },
     {
@@ -81,9 +81,9 @@ export default function AdminLayout({ children }) {
       title: 'Hệ thống',
       icon: Settings,
       items: [
-        { icon: ShieldCheck, label: 'Phân quyền', path: '/admin-rbac' },
-        { icon: Activity, label: 'Audit Log', path: '/admin-audit-log' },
-        { icon: Settings, label: 'Cài đặt', path: '/admin-settings' },
+        { icon: ShieldCheck, label: 'Phân quyền', pageName: 'AdminRBAC' },
+        { icon: Activity, label: 'Audit Log', pageName: 'AdminAuditLog' },
+        { icon: Settings, label: 'Cài đặt', pageName: 'AdminSettings' },
       ]
     }
   ];
@@ -130,12 +130,13 @@ export default function AdminLayout({ children }) {
                   <div className="mt-1 ml-2 space-y-1">
                     {section.items.map((item) => {
                       const ItemIcon = item.icon;
-                      const isActive = location.pathname === item.path;
+                      const pageUrl = createPageUrl(item.pageName);
+                      const isActive = location.pathname === pageUrl;
                       
                       return (
                         <Link
-                          key={item.path}
-                          to={item.path}
+                          key={item.pageName}
+                          to={pageUrl}
                           className={`flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-colors ${
                             isActive
                               ? 'bg-indigo-50 text-indigo-600 font-medium'

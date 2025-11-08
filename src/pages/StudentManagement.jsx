@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo } from "react";
 import { motion } from "framer-motion";
-import { 
-  Search, Users, BookOpen, TrendingUp, Award, Plus, Edit2, Trash2, 
+import {
+  Search, Users, BookOpen, TrendingUp, Award, Plus, Edit2, Trash2,
   Eye, X, Save, Loader2, Mail, Phone, School, Calendar
 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
@@ -10,6 +10,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AdminLayout from "@/components/AdminLayout";
 import { ToastProvider, useToast } from "@/components/Toast";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import { createPageUrl } from "@/utils";
+import { Link } from "react-router-dom";
 
 export default function StudentManagement() {
   return (
@@ -68,11 +70,11 @@ function StudentManagementContent() {
         student.user?.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         student.user_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         student.student_id?.toLowerCase().includes(searchTerm.toLowerCase());
-      
+
       const matchesGrade = filterGrade === "all" || student.grade_level === filterGrade;
       const matchesClass = filterClass === "all" || student.class_name === filterClass;
       const matchesStatus = filterStatus === "all" || student.status === filterStatus;
-      
+
       return matchesSearch && matchesGrade && matchesClass && matchesStatus;
     });
   }, [studentsWithUsers, searchTerm, filterGrade, filterClass, filterStatus]);
@@ -166,13 +168,13 @@ function StudentManagementContent() {
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2">
             <h1 className="text-3xl font-bold text-gray-900">Quản Lý Học Sinh</h1>
-            <a
-              href="/admin-student-info"
+            <Link
+              to={createPageUrl("AdminStudentInfo")}
               className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl hover:bg-indigo-700 transition-colors"
             >
               <Users className="w-5 h-5" />
               Xem thông tin chi tiết
-            </a>
+            </Link>
           </div>
           <p className="text-gray-600">{filteredStudents.length} học sinh</p>
         </div>
@@ -358,13 +360,13 @@ function StudentManagementContent() {
                       <Edit2 className="w-4 h-4" />
                       Sửa
                     </button>
-                    <a
-                      href={`/admin-student-info?student=${student.id}`}
+                    <Link
+                      to={`${createPageUrl("AdminStudentInfo")}?student=${student.id}`}
                       className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
                       title="Xem chi tiết đầy đủ"
                     >
                       <Users className="w-4 h-4" />
-                    </a>
+                    </Link>
                     <button
                       onClick={() => handleDelete(student)}
                       className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
@@ -380,7 +382,7 @@ function StudentManagementContent() {
 
         {/* View Modal */}
         {isViewModalOpen && selectedStudent && (
-          <div 
+          <div
             className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
             onClick={() => setIsViewModalOpen(false)}
           >
@@ -393,13 +395,13 @@ function StudentManagementContent() {
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-xl font-bold">Chi tiết học sinh</h3>
                 <div className="flex items-center gap-2">
-                  <a
-                    href={`/admin-student-info?student=${selectedStudent.id}`}
+                  <Link
+                    to={`${createPageUrl("AdminStudentInfo")}?student=${selectedStudent.id}`}
                     className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-xl hover:bg-purple-700 text-sm"
                   >
                     <Users className="w-4 h-4" />
                     Xem đầy đủ
-                  </a>
+                  </Link>
                   <button onClick={() => setIsViewModalOpen(false)} className="text-gray-400 hover:text-gray-600">
                     <X className="w-6 h-6" />
                   </button>
@@ -468,7 +470,7 @@ function StudentManagementContent() {
 
         {/* Edit Modal */}
         {isEditModalOpen && selectedStudent && (
-          <div 
+          <div
             className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
             onClick={() => setIsEditModalOpen(false)}
           >
