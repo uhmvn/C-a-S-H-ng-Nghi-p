@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
@@ -32,9 +33,11 @@ export default function ParentDashboard() {
             const profile = profiles[0];
             setParentProfile(profile);
 
-            // Check authorization
-            const linkedStudents = profile.linked_student_codes || [];
-            const isLinked = linkedStudents.some(l => l.student_code === studentCode);
+            // ✅ FIX: Safe access with null checks
+            const linkedStudents = Array.isArray(profile.linked_student_codes) 
+              ? profile.linked_student_codes 
+              : [];
+            const isLinked = linkedStudents.some(l => l && l.student_code === studentCode);
             setIsAuthorized(isLinked);
 
             if (!isLinked) {
@@ -60,36 +63,43 @@ export default function ParentDashboard() {
         user_code: studentCode,
         role: 'student'
       });
-      return profiles?.[0] || null;
+      return (profiles && profiles.length > 0) ? profiles[0] : null;
     },
-    enabled: !!studentCode && isAuthorized
+    enabled: !!studentCode && isAuthorized,
+    initialData: null
   });
 
   const { data: academicScores = [] } = useQuery({
     queryKey: ['studentScores', studentProfile?.id],
     queryFn: async () => {
       if (!studentProfile?.user_id) return [];
-      return await base44.entities.AcademicScore.filter({ 
+      const scores = await base44.entities.AcademicScore.filter({ 
         user_id: studentProfile.user_id 
       }, '-updated_at', 200);
+      return scores || [];
     },
-    enabled: !!studentProfile?.user_id && isAuthorized
+    enabled: !!studentProfile?.user_id && isAuthorized,
+    initialData: []
   });
 
   const { data: testResults = [] } = useQuery({
     queryKey: ['studentTests', studentProfile?.user_id],
     queryFn: async () => {
       if (!studentProfile?.user_id) return [];
-      return await base44.entities.TestResult.filter({ 
+      const results = await base44.entities.TestResult.filter({ 
         user_id: studentProfile.user_id 
       }, '-completed_date', 50);
+      return results || [];
     },
-    enabled: !!studentProfile?.user_id && isAuthorized
+    enabled: !!studentProfile?.user_id && isAuthorized,
+    initialData: []
   });
 
+  // ✅ FIX: Safe GPA calculation
   const gpa = useMemo(() => {
+    if (!academicScores || academicScores.length === 0) return 0;
     const validScores = academicScores.filter(s => 
-      typeof s.average_score === 'number' && !isNaN(s.average_score)
+      s && typeof s.average_score === 'number' && !isNaN(s.average_score)
     );
     if (validScores.length === 0) return 0;
     return (validScores.reduce((sum, s) => sum + s.average_score, 0) / validScores.length).toFixed(2);
@@ -97,7 +107,7 @@ export default function ParentDashboard() {
 
   const breadcrumbItems = [
     { label: "Dashboard", url: "/parent-linking" },
-    { label: studentProfile?.full_name || studentCode }
+    { label: studentProfile?.full_name || studentCode || 'Học sinh' }
   ];
 
   if (isLoading || studentLoading) {
@@ -168,7 +178,7 @@ export default function ParentDashboard() {
                 <h1 className="text-3xl font-bold mb-2">{studentProfile.full_name || studentCode}</h1>
                 <div className="flex flex-wrap gap-4 text-sm">
                   <span className="bg-white/20 px-3 py-1 rounded-full">
-                    Mã: {studentProfile.user_code}
+                    Mã: {studentProfile.user_code || 'N/A'}
                   </span>
                   <span className="bg-white/20 px-3 py-1 rounded-full">
                     Lớp: {studentProfile.class_name || 'N/A'}
@@ -291,7 +301,9 @@ export default function ParentDashboard() {
                   <div className="border-l-4 border-green-500 pl-3">
                     <p className="font-bold text-gray-900">👤 Người giám hộ</p>
                     <p className="text-gray-600">{studentProfile.guardian_name}</p>
-                    <p className="text-xs text-gray-500">{studentProfile.guardian_relationship}</p>
+                    {studentProfile.guardian_relationship && (
+                      <p className="text-xs text-gray-500">{studentProfile.guardian_relationship}</p>
+                    )}
                   </div>
                 )}
               </div>
@@ -309,7 +321,7 @@ export default function ParentDashboard() {
             >
               <div className="bg-white rounded-2xl p-6 shadow-sm border">
                 <BookOpen className="w-8 h-8 text-blue-500 mb-3" />
-                <h3 className="text-3xl font-bold">{academicScores.length}</h3>
+                <h3 className="text-3xl font-bold">{academicScores?.length || 0}</h3>
                 <p className="text-sm text-gray-600">Bản ghi điểm</p>
               </div>
               <div className="bg-white rounded-2xl p-6 shadow-sm border">
@@ -319,7 +331,7 @@ export default function ParentDashboard() {
               </div>
               <div className="bg-white rounded-2xl p-6 shadow-sm border">
                 <TrendingUp className="w-8 h-8 text-purple-500 mb-3" />
-                <h3 className="text-3xl font-bold">{testResults.length}</h3>
+                <h3 className="text-3xl font-bold">{testResults?.length || 0}</h3>
                 <p className="text-sm text-gray-600">Bài test đã làm</p>
               </div>
             </motion.div>
@@ -332,7 +344,7 @@ export default function ParentDashboard() {
               className="bg-white rounded-2xl p-6 shadow-sm border"
             >
               <h2 className="font-bold text-lg mb-4">📊 Điểm Số Gần Đây</h2>
-              {academicScores.length === 0 ? (
+              {!academicScores || academicScores.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   <BookOpen className="w-12 h-12 text-gray-300 mx-auto mb-2" />
                   Chưa có điểm
@@ -351,35 +363,38 @@ export default function ParentDashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {academicScores.slice(0, 10).map((score, idx) => (
-                        <tr key={idx} className="border-t hover:bg-gray-50">
-                          <td className="px-3 py-2 font-medium">{score.subject_name}</td>
-                          <td className="px-3 py-2 text-center text-xs">
-                            {score.academic_year_id} - HK{score.semester}
-                          </td>
-                          <td className="px-3 py-2 text-center">
-                            {score.midterm_score?.toFixed(1) || '-'}
-                          </td>
-                          <td className="px-3 py-2 text-center">
-                            {score.final_score?.toFixed(1) || '-'}
-                          </td>
-                          <td className="px-3 py-2 text-center font-bold">
-                            {score.average_score?.toFixed(1) || '-'}
-                          </td>
-                          <td className="px-3 py-2 text-center">
-                            <span className={`px-2 py-1 rounded-full text-xs ${
-                              score.classification === 'excellent' ? 'bg-green-100 text-green-700' :
-                              score.classification === 'good' ? 'bg-blue-100 text-blue-700' :
-                              score.classification === 'average' ? 'bg-yellow-100 text-yellow-700' :
-                              'bg-red-100 text-red-700'
-                            }`}>
-                              {score.classification === 'excellent' ? 'Giỏi' :
-                               score.classification === 'good' ? 'Khá' :
-                               score.classification === 'average' ? 'TB' : 'Yếu'}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
+                      {academicScores.slice(0, 10).map((score, idx) => {
+                        if (!score) return null;
+                        return (
+                          <tr key={idx} className="border-t hover:bg-gray-50">
+                            <td className="px-3 py-2 font-medium">{score.subject_name || 'N/A'}</td>
+                            <td className="px-3 py-2 text-center text-xs">
+                              {score.academic_year_id || 'N/A'} - HK{score.semester}
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              {score.midterm_score?.toFixed(1) || '-'}
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              {score.final_score?.toFixed(1) || '-'}
+                            </td>
+                            <td className="px-3 py-2 text-center font-bold">
+                              {score.average_score?.toFixed(1) || '-'}
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              <span className={`px-2 py-1 rounded-full text-xs ${
+                                score.classification === 'excellent' ? 'bg-green-100 text-green-700' :
+                                score.classification === 'good' ? 'bg-blue-100 text-blue-700' :
+                                score.classification === 'average' ? 'bg-yellow-100 text-yellow-700' :
+                                'bg-red-100 text-red-700'
+                              }`}>
+                                {score.classification === 'excellent' ? 'Giỏi' :
+                                 score.classification === 'good' ? 'Khá' :
+                                 score.classification === 'average' ? 'TB' : 'Yếu'}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -387,7 +402,7 @@ export default function ParentDashboard() {
             </motion.div>
 
             {/* Test Results */}
-            {testResults.length > 0 && (
+            {testResults && testResults.length > 0 && (
               <motion.div
                 initial={{ opacity: 0, y: 40 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -396,24 +411,27 @@ export default function ParentDashboard() {
               >
                 <h2 className="font-bold text-lg mb-4">🧠 Kết Quả Test</h2>
                 <div className="space-y-3">
-                  {testResults.slice(0, 5).map((test, idx) => (
-                    <div key={idx} className="border rounded-xl p-4 hover:bg-gray-50">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <h3 className="font-bold">{test.test_name}</h3>
-                          <p className="text-xs text-gray-500">
-                            {format(new Date(test.completed_date), 'dd/MM/yyyy', { locale: vi })}
-                          </p>
+                  {testResults.slice(0, 5).map((test, idx) => {
+                    if (!test) return null;
+                    return (
+                      <div key={idx} className="border rounded-xl p-4 hover:bg-gray-50">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <h3 className="font-bold">{test.test_name || 'Test'}</h3>
+                            <p className="text-xs text-gray-500">
+                              {test.completed_date ? format(new Date(test.completed_date), 'dd/MM/yyyy', { locale: vi }) : 'N/A'}
+                            </p>
+                          </div>
+                          <a
+                            href={`/test-result-detail?id=${test.id}`}
+                            className="text-sm text-indigo-600 hover:text-indigo-700"
+                          >
+                            Xem chi tiết →
+                          </a>
                         </div>
-                        <a
-                          href={`/test-result-detail?id=${test.id}`}
-                          className="text-sm text-indigo-600 hover:text-indigo-700"
-                        >
-                          Xem chi tiết →
-                        </a>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </motion.div>
             )}

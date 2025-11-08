@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link2, UserCheck, AlertCircle, CheckCircle, Loader2, Users, ShieldCheck } from "lucide-react";
 import { motion } from "framer-motion";
 import toast, { Toaster } from "react-hot-toast";
@@ -78,15 +79,24 @@ export default function ParentLinking() {
 
       console.log('✅ Secret code verified');
 
-      // Step 3: Get User info
-      const users = await base44.entities.User.filter({ id: currentUser.id });
-      const parentName = users[0]?.full_name || currentUser.email;
+      // Step 3: Get User info (Safe access to User entity)
+      let parentName = currentUser.email;
+      try {
+        const users = await base44.entities.User.filter({ id: currentUser.id });
+        if (users && users.length > 0) {
+          parentName = users[0]?.full_name || currentUser.email;
+        }
+      } catch (error) {
+        console.warn('Cannot fetch User name, using email');
+      }
 
-      // Step 4: Link parent to student
-      const existingLinks = parentProfile.linked_student_codes || [];
+      // Step 4: Link parent to student (Safe array access)
+      const existingLinks = Array.isArray(parentProfile.linked_student_codes) 
+        ? parentProfile.linked_student_codes 
+        : [];
       
       // Check if already linked
-      if (existingLinks.some(l => l.student_code === studentCode)) {
+      if (existingLinks.some(l => l && l.student_code === studentCode)) {
         throw new Error('Đã liên kết với học sinh này rồi');
       }
 
@@ -128,8 +138,10 @@ export default function ParentLinking() {
 
   const unlinkMutation = useMutation({
     mutationFn: async (studentCode) => {
-      const existingLinks = parentProfile.linked_student_codes || [];
-      const newLinks = existingLinks.filter(l => l.student_code !== studentCode);
+      const existingLinks = Array.isArray(parentProfile.linked_student_codes) 
+        ? parentProfile.linked_student_codes 
+        : [];
+      const newLinks = existingLinks.filter(l => l && l.student_code !== studentCode);
 
       await base44.entities.UserProfile.update(parentProfile.id, {
         linked_student_codes: newLinks
@@ -165,7 +177,10 @@ export default function ParentLinking() {
     );
   }
 
-  const linkedStudents = parentProfile?.linked_student_codes || [];
+  // Safe access to linked students
+  const linkedStudents = Array.isArray(parentProfile?.linked_student_codes) 
+    ? parentProfile.linked_student_codes 
+    : [];
 
   return (
     <div className="pt-32 pb-24 min-h-screen bg-gradient-to-b from-blue-50 to-white">
@@ -291,61 +306,66 @@ export default function ParentLinking() {
             </div>
           ) : (
             <div className="space-y-4">
-              {linkedStudents.map((link, idx) => (
-                <motion.div
-                  key={idx}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: idx * 0.1 }}
-                  className="border-2 border-gray-200 rounded-2xl p-6 hover:border-indigo-300 transition-all"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="w-14 h-14 bg-indigo-100 rounded-full flex items-center justify-center">
-                        <Users className="w-7 h-7 text-indigo-600" />
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-lg flex items-center gap-2">
-                          {link.student_name || link.student_code}
-                          {link.verified && (
-                            <CheckCircle className="w-5 h-5 text-green-500" />
+              {linkedStudents.map((link, idx) => {
+                if (!link) return null; // Handle potential null/undefined links
+                return (
+                  <motion.div
+                    key={idx}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: idx * 0.1 }}
+                    className="border-2 border-gray-200 rounded-2xl p-6 hover:border-indigo-300 transition-all"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 bg-indigo-100 rounded-full flex items-center justify-center">
+                          <Users className="w-7 h-7 text-indigo-600" />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-lg flex items-center gap-2">
+                            {link.student_name || link.student_code}
+                            {link.verified && (
+                              <CheckCircle className="w-5 h-5 text-green-500" />
+                            )}
+                          </h3>
+                          <p className="text-sm text-gray-600">
+                            Mã: {link.student_code} • Quan hệ: {
+                              link.relationship === 'father' ? 'Cha' :
+                              link.relationship === 'mother' ? 'Mẹ' :
+                              link.relationship === 'guardian' ? 'Người giám hộ' :
+                              link.relationship === 'sibling' ? 'Anh/Chị/Em' : 'Khác'
+                            }
+                          </p>
+                          {link.linked_at && ( // Conditionally display linked_at
+                            <p className="text-xs text-gray-500">
+                              Liên kết: {new Date(link.linked_at).toLocaleDateString('vi-VN')}
+                            </p>
                           )}
-                        </h3>
-                        <p className="text-sm text-gray-600">
-                          Mã: {link.student_code} • Quan hệ: {
-                            link.relationship === 'father' ? 'Cha' :
-                            link.relationship === 'mother' ? 'Mẹ' :
-                            link.relationship === 'guardian' ? 'Người giám hộ' :
-                            link.relationship === 'sibling' ? 'Anh/Chị/Em' : 'Khác'
-                          }
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          Liên kết: {new Date(link.linked_at).toLocaleDateString('vi-VN')}
-                        </p>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <a
+                          href={`/parent-dashboard?student=${link.student_code}`}
+                          className="bg-indigo-600 text-white px-5 py-2 rounded-xl hover:bg-indigo-700 text-sm font-medium"
+                        >
+                          Xem Chi Tiết
+                        </a>
+                        <button
+                          onClick={() => {
+                            if (confirm('Bạn có chắc muốn hủy liên kết?')) {
+                              unlinkMutation.mutate(link.student_code);
+                            }
+                          }}
+                          className="border-2 border-red-600 text-red-600 px-5 py-2 rounded-xl hover:bg-red-50 text-sm font-medium"
+                        >
+                          Hủy
+                        </button>
                       </div>
                     </div>
-
-                    <div className="flex gap-2">
-                      <a
-                        href={`/parent-dashboard?student=${link.student_code}`}
-                        className="bg-indigo-600 text-white px-5 py-2 rounded-xl hover:bg-indigo-700 text-sm font-medium"
-                      >
-                        Xem Chi Tiết
-                      </a>
-                      <button
-                        onClick={() => {
-                          if (confirm('Bạn có chắc muốn hủy liên kết?')) {
-                            unlinkMutation.mutate(link.student_code);
-                          }
-                        }}
-                        className="border-2 border-red-600 text-red-600 px-5 py-2 rounded-xl hover:bg-red-50 text-sm font-medium"
-                      >
-                        Hủy
-                      </button>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
+                  </motion.div>
+                );
+              })}
             </div>
           )}
         </motion.div>
