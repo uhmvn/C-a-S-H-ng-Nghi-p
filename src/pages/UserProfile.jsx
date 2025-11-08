@@ -40,32 +40,31 @@ function UserProfileContent() {
     classification: 'average'
   });
 
-  // ✅ NEW: Fetch Academic Years
+  // ✅ Fetch Academic Years
   const { data: academicYears = [] } = useQuery({
     queryKey: ['academicYears'],
     queryFn: async () => {
       const years = await base44.entities.AcademicYear.filter({ is_active: true }, '-year_code');
-      console.log('📅 Academic years loaded:', years.length);
-      return years;
+      console.log('📅 Academic years loaded:', years?.length || 0);
+      return years || [];
     },
     initialData: []
   });
 
-  // ✅ NEW: Fetch Subjects based on student's grade
+  // ✅ Fetch Subjects
   const { data: subjects = [] } = useQuery({
     queryKey: ['subjects', profileData?.grade_level],
     queryFn: async () => {
       const allSubjects = await base44.entities.Subject.filter({ is_active: true }, 'order');
-      console.log('📚 Subjects loaded:', allSubjects.length);
+      console.log('📚 Subjects loaded:', allSubjects?.length || 0);
 
-      // Filter by grade level if available
       if (profileData?.grade_level) {
         const gradeNum = parseInt(profileData.grade_level);
         const level = gradeNum >= 10 ? 'high_school' : 'middle_school';
-        return allSubjects.filter(s => s.level === level || s.level === 'both');
+        return (allSubjects || []).filter(s => s.level === level || s.level === 'both');
       }
 
-      return allSubjects;
+      return allSubjects || [];
     },
     enabled: !!profileData,
     initialData: []
@@ -89,7 +88,7 @@ function UserProfileContent() {
                   role_key: userRole,
                   is_granted: true
                 });
-                setUserPermissions(rolePerms.map(rp => rp.permission_key));
+                setUserPermissions((rolePerms || []).map(rp => rp.permission_key));
               } else {
                 setUserPermissions(['view_own_profile']);
               }
@@ -146,7 +145,7 @@ function UserProfileContent() {
     queryFn: async () => {
       if (!canViewTestResults || !currentUser?.id) return [];
       try {
-        return await base44.entities.TestResult.filter({ user_id: currentUser.id }, '-completed_date');
+        return await base44.entities.TestResult.filter({ user_id: currentUser.id }, '-completed_date') || [];
       } catch (error) {
         return [];
       }
@@ -155,7 +154,6 @@ function UserProfileContent() {
     initialData: [],
   });
 
-  // ✅ FIXED: Query by user_id instead of student_id
   const { data: academicScores = [], isLoading: scoresLoading, refetch: refetchScores } = useQuery({
     queryKey: ['academicScores', currentUser?.id],
     queryFn: async () => {
@@ -187,7 +185,7 @@ function UserProfileContent() {
       if (!currentUser?.id) return null;
       try {
         const journeys = await base44.entities.StudentJourney.filter({ user_id: currentUser.id });
-        return journeys?.[0] || null;
+        return (journeys && journeys.length > 0) ? journeys[0] : null;
       } catch (error) {
         return null;
       }
@@ -200,7 +198,7 @@ function UserProfileContent() {
     queryFn: async () => {
       if (!currentUser?.id) return [];
       try {
-        return await base44.entities.AICounselingSession.filter({ user_id: currentUser.id }, '-session_date', 20);
+        return await base44.entities.AICounselingSession.filter({ user_id: currentUser.id }, '-session_date', 20) || [];
       } catch (error) {
         return [];
       }
@@ -231,7 +229,7 @@ function UserProfileContent() {
 
   const groupedScores = useMemo(() => {
     const groups = {};
-    academicScores.forEach(score => {
+    (academicScores || []).forEach(score => {
       const key = `${score.academic_year_id || 'N/A'}-${score.semester}`;
       if (!groups[key]) {
         groups[key] = {
@@ -251,9 +249,11 @@ function UserProfileContent() {
   }, [academicScores]);
 
   const academicAnalysis = useMemo(() => {
-    if (academicScores.length === 0) return null;
+    if (!academicScores || academicScores.length === 0) return null;
 
-    const validScores = academicScores.filter(s => typeof s.average_score === 'number' && !isNaN(s.average_score));
+    const validScores = (academicScores || []).filter(s => 
+      typeof s.average_score === 'number' && !isNaN(s.average_score)
+    );
     if (validScores.length === 0) return null;
 
     const totalAvg = validScores.reduce((sum, s) => sum + s.average_score, 0) / validScores.length;
@@ -283,9 +283,8 @@ function UserProfileContent() {
     };
   }, [academicScores]);
 
-  // NEW: Chart data for academic performance
   const academicChartData = useMemo(() => {
-    if (academicScores.length === 0) return [];
+    if (!academicScores || academicScores.length === 0) return [];
 
     const subjectMap = {};
     academicScores.forEach(score => {
@@ -305,11 +304,10 @@ function UserProfileContent() {
       .slice(0, 8);
   }, [academicScores]);
 
-  // NEW: Recent activity
   const recentActivity = useMemo(() => {
     const activities = [];
 
-    testResults.slice(0, 3).forEach(test => {
+    (testResults || []).slice(0, 3).forEach(test => {
       activities.push({
         type: 'test',
         title: `Hoàn thành: ${test.test_name}`,
@@ -319,7 +317,7 @@ function UserProfileContent() {
       });
     });
 
-    counselingSessions.slice(0, 3).forEach(session => {
+    (counselingSessions || []).slice(0, 3).forEach(session => {
       activities.push({
         type: 'session',
         title: session.counseling_summary || 'Chat với AI',
@@ -332,11 +330,10 @@ function UserProfileContent() {
     return activities.sort((a, b) => b.date - a.date).slice(0, 5);
   }, [testResults, counselingSessions]);
 
-  // NEW: Recommended actions
   const recommendedActions = useMemo(() => {
     const actions = [];
 
-    if (testResults.length === 0) {
+    if (!testResults || testResults.length === 0) {
       actions.push({
         title: 'Làm bài test đầu tiên',
         description: 'Khám phá tính cách và sở thích',
@@ -346,7 +343,7 @@ function UserProfileContent() {
       });
     }
 
-    if (!studentJourney || counselingSessions.length === 0) {
+    if (!studentJourney || !counselingSessions || counselingSessions.length === 0) {
       actions.push({
         title: 'Chat với AI Cố Vấn',
         description: 'Bắt đầu hành trình tự nhận thức',
@@ -361,7 +358,7 @@ function UserProfileContent() {
       });
     }
 
-    if (academicScores.length === 0) {
+    if (!academicScores || academicScores.length === 0) {
       actions.push({
         title: 'Thêm điểm học bạ',
         description: 'Phân tích năng lực học tập',
@@ -452,10 +449,10 @@ function UserProfileContent() {
   const showTranscriptTab = displayRole === 'student';
   const isParent = displayRole === 'parent';
 
-  // ✅ NEW: Get linked students for parent
+  // ✅ FIX: Safe access to linked students
   const linkedStudents = useMemo(() => {
     if (!isParent || !profileData?.linked_student_codes) return [];
-    return profileData.linked_student_codes;
+    return Array.isArray(profileData.linked_student_codes) ? profileData.linked_student_codes : [];
   }, [isParent, profileData]);
 
   const roleLabels = {
@@ -628,7 +625,7 @@ function UserProfileContent() {
                           )}
                         </div>
                         <a
-                          href={`${createPageUrl("ParentDashboard")}?student=${student.student_code}`}
+                          href={createPageUrl(`ParentDashboard?student_code=${student.student_code}`)} // Ensure correct URL for dashboard
                           className="block w-full bg-pink-600 text-white text-center py-2 rounded-lg text-sm hover:bg-pink-700"
                         >
                           Xem Dashboard
