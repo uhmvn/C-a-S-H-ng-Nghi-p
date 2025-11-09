@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "react-router-dom";
@@ -17,7 +16,6 @@ export default function ServiceDetail() {
   const [selectedVersion, setSelectedVersion] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   
-  // Get current user
   React.useEffect(() => {
     const fetchUser = async () => {
       try {
@@ -30,7 +28,6 @@ export default function ServiceDetail() {
     fetchUser();
   }, []);
   
-  // Fetch service from database
   const { data: service, isLoading } = useQuery({
     queryKey: ['service', serviceId],
     queryFn: async () => {
@@ -41,7 +38,6 @@ export default function ServiceDetail() {
     enabled: !!serviceId
   });
 
-  // ✅ FIXED: Better null handling for test versions
   const { data: testVersions = [] } = useQuery({
     queryKey: ['testVersions', service?.test_code],
     queryFn: async () => {
@@ -61,7 +57,6 @@ export default function ServiceDetail() {
     retry: 1
   });
 
-  // ✅ FIXED: Better null handling for user test history
   const { data: userTestHistory = [] } = useQuery({
     queryKey: ['userTestHistory', currentUser?.id, service?.test_code],
     queryFn: async () => {
@@ -87,37 +82,39 @@ export default function ServiceDetail() {
     retry: 1
   });
 
-  // ✅ FIXED: Safe auto-select latest version
   React.useEffect(() => {
     if (testVersions && testVersions.length > 0 && !selectedVersion) {
       setSelectedVersion(testVersions[0]);
     }
   }, [testVersions, selectedVersion]);
 
-  // ✅ IMPROVED: Smart CTA handler with version support
+  // ✅ FIX: Simplified CTA handler - ALWAYS go to test page if test_code exists
   const handleCTA = () => {
     if (!service) return;
     
-    // Priority 1: Dynamic test code with version
-    if (service.test_code && selectedVersion) {
-      // Navigate to test page with version
-      window.location.href = createPageUrl(`Test?code=${service.test_code}&version=${selectedVersion.version}`);
-      return;
-    }
-    
-    // Priority 2: Dynamic test code (no version)
+    // ✅ Priority 1: Test code (with or without version) - GO TO TEST PAGE
     if (service.test_code) {
-      window.location.href = createPageUrl(`Test?code=${service.test_code}`);
+      let testUrl = createPageUrl(`Test?code=${service.test_code}`);
+      
+      // Add version if selected
+      if (selectedVersion && selectedVersion.version) {
+        testUrl += `&version=${selectedVersion.version}`;
+      }
+      
+      console.log('🧪 Redirecting to test:', testUrl);
+      window.location.href = testUrl;
       return;
     }
     
-    // Priority 3: Custom redirect URL
+    // ✅ Priority 2: Custom redirect URL (for non-test services)
     if (service.redirect_url) {
+      console.log('🔗 Redirecting to:', service.redirect_url);
       window.location.href = service.redirect_url;
       return;
     }
     
-    // Priority 4: Default booking
+    // ✅ Priority 3: Default booking modal (for counseling services)
+    console.log('📅 Opening booking modal');
     window.dispatchEvent(new CustomEvent('open-booking-modal-with-service', { 
       detail: { service } 
     }));
@@ -126,15 +123,23 @@ export default function ServiceDetail() {
   const ctaText = useMemo(() => {
     if (!service) return 'Tìm hiểu thêm';
     
-    if (userTestHistory.length > 0) {
+    // ✅ If test service and user has history
+    if (service.test_code && userTestHistory.length > 0) {
       return 'Làm lại bài test';
     }
     
+    // ✅ If test service (first time or no history)
+    if (service.test_code) {
+      return 'Làm bài test ngay';
+    }
+    
+    // ✅ Based on action_type
     if (service.action_type === 'test') return 'Làm bài test ngay';
     if (service.action_type === 'redirect') return 'Xem ngay';
     if (service.action_type === 'booking') return 'Đặt lịch tư vấn';
     
-    if (service.test_code) return 'Làm bài test ngay';
+    // ✅ Fallback based on category
+    if (service.category === 'assessment') return 'Làm bài test ngay';
     if (service.redirect_url) return 'Xem ngay';
 
     return 'Đăng ký ngay';
@@ -182,8 +187,7 @@ export default function ServiceDetail() {
     { label: service.name }
   ];
 
-  // ✅ FIXED: Safe access to arrays
-  const isTestService = service?.test_code || service?.action_type === 'test';
+  const isTestService = service?.test_code || service?.action_type === 'test' || service?.category === 'assessment';
   const hasTestHistory = userTestHistory.length > 0;
   const latestResult = hasTestHistory ? userTestHistory[0] : null;
   const hasMultipleVersions = testVersions.length > 1;
@@ -194,9 +198,7 @@ export default function ServiceDetail() {
         
         <Breadcrumb items={breadcrumbItems} />
 
-        {/* Hero Section */}
         <div className="grid lg:grid-cols-2 gap-12 mb-16">
-          {/* Image */}
           <motion.div
             initial={{ opacity: 0, x: -40 }}
             animate={{ opacity: 1, x: 0 }}
@@ -226,7 +228,6 @@ export default function ServiceDetail() {
             )}
           </motion.div>
 
-          {/* Info */}
           <motion.div
             initial={{ opacity: 0, x: 40 }}
             animate={{ opacity: 1, x: 0 }}
@@ -247,7 +248,6 @@ export default function ServiceDetail() {
               {service.description}
             </p>
 
-            {/* ✅ FIXED: Version Selector with null safety */}
             {isTestService && hasMultipleVersions && (
               <div className="bg-blue-50 rounded-xl p-4 mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -275,7 +275,6 @@ export default function ServiceDetail() {
               </div>
             )}
 
-            {/* ✅ FIXED: Test History with null safety */}
             {isTestService && hasTestHistory && latestResult && (
               <div className="bg-gradient-to-br from-green-50 to-blue-50 rounded-xl p-6 mb-6 border-2 border-green-200">
                 <div className="flex items-center gap-2 mb-4">
@@ -332,7 +331,6 @@ export default function ServiceDetail() {
               </div>
             )}
 
-            {/* Meta Info */}
             <div className="flex flex-wrap gap-4 mb-8">
               <div className="flex items-center gap-2 bg-white rounded-xl px-4 py-3 shadow-sm">
                 <Clock className="w-5 h-5 text-indigo-600" />
@@ -357,7 +355,6 @@ export default function ServiceDetail() {
               </div>
             </div>
 
-            {/* Login Warning (if not logged in and test service) */}
             {isTestService && !currentUser && (
               <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-xl mb-6">
                 <div className="flex items-center gap-2">
@@ -369,7 +366,6 @@ export default function ServiceDetail() {
               </div>
             )}
 
-            {/* CTA */}
             <button 
               onClick={handleCTA}
               className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-4 rounded-xl font-medium hover:from-indigo-700 hover:to-purple-700 transition-all hover:scale-105 shadow-lg flex items-center justify-center gap-2"
@@ -386,7 +382,6 @@ export default function ServiceDetail() {
           </motion.div>
         </div>
 
-        {/* Benefits */}
         {service.benefits && service.benefits.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 40 }}
@@ -412,7 +407,6 @@ export default function ServiceDetail() {
           </motion.div>
         )}
 
-        {/* Bottom CTA */}
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
@@ -423,7 +417,7 @@ export default function ServiceDetail() {
           <p className="text-xl mb-8 opacity-90">
             {hasTestHistory 
               ? 'Làm lại để cải thiện và so sánh kết quả với lần trước'
-              : service.name?.toLowerCase().includes('test') || service.name?.toLowerCase().includes('trắc nghiệm')
+              : isTestService
               ? 'Bắt đầu làm bài test để khám phá bản thân' 
               : 'Đăng ký ngay để nhận tư vấn từ chuyên gia'}
           </p>
