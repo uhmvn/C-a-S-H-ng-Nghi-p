@@ -16,14 +16,11 @@ const categories = [
   { key: "career_profile", name: "Hồ sơ năng lực" }
 ];
 
-// ✅ FIXED: Smart CTA helper - returns action type
 const getServiceCTA = (service) => {
-  // Priority 1: test_code → GO TO TEST
   if (service.test_code) {
     return { text: "Làm Ngay", icon: Play, action: 'test' };
   }
   
-  // Priority 2: action_type
   if (service.action_type === 'test') {
     return { text: "Làm Ngay", icon: Play, action: 'test' };
   }
@@ -34,12 +31,10 @@ const getServiceCTA = (service) => {
     return { text: "Đặt Lịch", icon: Calendar, action: 'booking' };
   }
   
-  // Priority 3: redirect_url
   if (service.redirect_url) {
     return { text: "Xem Ngay", icon: Eye, action: 'redirect' };
   }
   
-  // Priority 4: Category-based
   const ctaConfig = {
     assessment: { text: "Làm Ngay", icon: Play, action: 'test' },
     career_counseling: { text: "Đặt Lịch Tư Vấn", icon: Calendar, action: 'booking' },
@@ -78,30 +73,9 @@ export default function Services() {
       : activeServices.filter(service => service.category === activeFilter);
   }, [activeFilter, services]);
 
-  // ✅ FIXED: Smart service click handler
-  const handleServiceClick = useCallback((service, e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    console.log('🎯 Service clicked:', service.name, 'test_code:', service.test_code);
-    
-    // ✅ Priority 1: Test service → GO TO TEST PAGE
-    if (service.test_code) {
-      const testUrl = createPageUrl(`Test?code=${service.test_code}`);
-      console.log('🧪 Navigating to test:', testUrl);
-      window.location.href = testUrl;
-      return;
-    }
-    
-    // ✅ Priority 2: Redirect URL
-    if (service.redirect_url) {
-      console.log('🔗 Redirecting to:', service.redirect_url);
-      window.location.href = service.redirect_url;
-      return;
-    }
-    
-    // ✅ Priority 3: Go to detail page for other services
-    console.log('📄 Going to detail page');
+  // ✅ REVERTED: Always go to ServiceDetail page
+  const handleServiceClick = useCallback((service) => {
+    // Go to service detail page - let detail page handle the action
     navigate(createPageUrl(`ServiceDetail?id=${service.id}`));
   }, [navigate]);
 
@@ -184,7 +158,7 @@ export default function Services() {
                       ease: "easeOut"
                     }}
                     whileHover={{ scale: 1.03, y: -8, boxShadow: "0 20px 40px rgba(0,0,0,0.1)" }}
-                    onClick={(e) => handleServiceClick(service, e)}
+                    onClick={() => handleServiceClick(service)}
                     className="group bg-white rounded-3xl overflow-hidden shadow-lg will-change-transform cursor-pointer"
                   >
                     <div className="relative h-64 overflow-hidden">
@@ -212,11 +186,10 @@ export default function Services() {
                         </div>
                       )}
                       
-                      {/* ✅ NEW: Test badge */}
                       {service.test_code && (
                         <div className="absolute bottom-4 right-4 bg-green-500 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
                           <Play className="w-3 h-3" />
-                          Trắc nghiệm
+                          Test
                         </div>
                       )}
                     </div>
