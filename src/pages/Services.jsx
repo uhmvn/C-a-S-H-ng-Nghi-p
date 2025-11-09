@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Clock, Star, ArrowRight, Sparkles, Play, Calendar, Eye } from "lucide-react";
@@ -17,37 +16,39 @@ const categories = [
   { key: "career_profile", name: "Hồ sơ năng lực" }
 ];
 
-// ✅ IMPROVED: Smart CTA helper function
+// ✅ FIXED: Smart CTA helper - returns action type
 const getServiceCTA = (service) => {
-  // Priority 1: action_type
+  // Priority 1: test_code → GO TO TEST
+  if (service.test_code) {
+    return { text: "Làm Ngay", icon: Play, action: 'test' };
+  }
+  
+  // Priority 2: action_type
   if (service.action_type === 'test') {
-    return { text: "Làm Ngay", icon: Play };
+    return { text: "Làm Ngay", icon: Play, action: 'test' };
   }
   if (service.action_type === 'redirect') {
-    return { text: "Xem Ngay", icon: Eye };
+    return { text: "Xem Ngay", icon: Eye, action: 'redirect' };
   }
   if (service.action_type === 'booking') {
-    return { text: "Đặt Lịch", icon: Calendar };
+    return { text: "Đặt Lịch", icon: Calendar, action: 'booking' };
   }
   
-  // Priority 2: test_code or redirect_url
-  if (service.test_code) {
-    return { text: "Làm Ngay", icon: Play };
-  }
+  // Priority 3: redirect_url
   if (service.redirect_url) {
-    return { text: "Xem Ngay", icon: Eye };
+    return { text: "Xem Ngay", icon: Eye, action: 'redirect' };
   }
   
-  // Priority 3: Category-based
+  // Priority 4: Category-based
   const ctaConfig = {
-    assessment: { text: "Làm Ngay", icon: Play },
-    career_counseling: { text: "Đặt Lịch Tư Vấn", icon: Calendar },
-    school_selection: { text: "Xem Ngay", icon: Eye },
-    ai_analysis: { text: "Phân Tích Ngay", icon: Play },
-    career_profile: { text: "Tạo Hồ Sơ", icon: Play }
+    assessment: { text: "Làm Ngay", icon: Play, action: 'test' },
+    career_counseling: { text: "Đặt Lịch Tư Vấn", icon: Calendar, action: 'booking' },
+    school_selection: { text: "Xem Ngay", icon: Eye, action: 'redirect' },
+    ai_analysis: { text: "Phân Tích Ngay", icon: Play, action: 'test' },
+    career_profile: { text: "Tạo Hồ Sơ", icon: Play, action: 'test' }
   };
   
-  return ctaConfig[service.category] || { text: "Tìm Hiểu Thêm", icon: ArrowRight };
+  return ctaConfig[service.category] || { text: "Tìm Hiểu Thêm", icon: ArrowRight, action: 'detail' };
 };
 
 export default function Services() {
@@ -55,7 +56,6 @@ export default function Services() {
   const navigate = useNavigate();
   const [activeFilter, setActiveFilter] = useState("all");
 
-  // Fetch services from database
   const { data: services = [], isLoading } = useQuery({
     queryKey: ['services'],
     queryFn: () => base44.entities.Service.list('order'),
@@ -72,16 +72,36 @@ export default function Services() {
   }, [urlParams]);
 
   const filteredServices = useMemo(() => {
-    // Only show active services
     const activeServices = services.filter(s => s.is_active !== false);
-    
     return activeFilter === "all" 
       ? activeServices 
       : activeServices.filter(service => service.category === activeFilter);
   }, [activeFilter, services]);
 
-  const handleServiceClick = useCallback((service) => {
-    // Navigate to service detail page
+  // ✅ FIXED: Smart service click handler
+  const handleServiceClick = useCallback((service, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    console.log('🎯 Service clicked:', service.name, 'test_code:', service.test_code);
+    
+    // ✅ Priority 1: Test service → GO TO TEST PAGE
+    if (service.test_code) {
+      const testUrl = createPageUrl(`Test?code=${service.test_code}`);
+      console.log('🧪 Navigating to test:', testUrl);
+      window.location.href = testUrl;
+      return;
+    }
+    
+    // ✅ Priority 2: Redirect URL
+    if (service.redirect_url) {
+      console.log('🔗 Redirecting to:', service.redirect_url);
+      window.location.href = service.redirect_url;
+      return;
+    }
+    
+    // ✅ Priority 3: Go to detail page for other services
+    console.log('📄 Going to detail page');
     navigate(createPageUrl(`ServiceDetail?id=${service.id}`));
   }, [navigate]);
 
@@ -95,7 +115,6 @@ export default function Services() {
         
         <Breadcrumb items={breadcrumbItems} />
 
-        {/* Page Header */}
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
@@ -117,7 +136,6 @@ export default function Services() {
           </p>
         </motion.div>
 
-        {/* Category Filters */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -139,7 +157,6 @@ export default function Services() {
           ))}
         </motion.div>
 
-        {/* Loading State */}
         {isLoading ? (
           <div className="text-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
@@ -151,7 +168,6 @@ export default function Services() {
           </div>
         ) : (
           <>
-            {/* Services Grid */}
             <div className="grid lg:grid-cols-3 md:grid-cols-2 gap-[clamp(1rem,2vw,2.5rem)]">
               {filteredServices.map((service, index) => {
                 const ctaConfig = getServiceCTA(service);
@@ -168,10 +184,9 @@ export default function Services() {
                       ease: "easeOut"
                     }}
                     whileHover={{ scale: 1.03, y: -8, boxShadow: "0 20px 40px rgba(0,0,0,0.1)" }}
-                    onClick={() => handleServiceClick(service)}
+                    onClick={(e) => handleServiceClick(service, e)}
                     className="group bg-white rounded-3xl overflow-hidden shadow-lg will-change-transform cursor-pointer"
                   >
-                    {/* Service Image */}
                     <div className="relative h-64 overflow-hidden">
                       <img
                         src={service.image_url}
@@ -182,26 +197,30 @@ export default function Services() {
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                       
-                      {/* Price Badge */}
                       <div className="absolute top-4 right-4 bg-indigo-600 text-white px-4 py-2 rounded-full text-sm font-bold shadow-lg">
                         {service.price.toLocaleString('vi-VN')}đ
                       </div>
 
-                      {/* Duration Badge */}
                       <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm text-gray-800 px-3 py-1 rounded-full text-sm flex items-center gap-1">
                         <Clock className="w-3 h-3" />
                         {service.duration}
                       </div>
 
-                      {/* Featured Badge */}
                       {service.featured && (
                         <div className="absolute top-4 left-4 bg-yellow-500 text-white px-3 py-1 rounded-full text-xs font-bold">
                           NỔI BẬT
                         </div>
                       )}
+                      
+                      {/* ✅ NEW: Test badge */}
+                      {service.test_code && (
+                        <div className="absolute bottom-4 right-4 bg-green-500 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
+                          <Play className="w-3 h-3" />
+                          Trắc nghiệm
+                        </div>
+                      )}
                     </div>
 
-                    {/* Service Content */}
                     <div className="p-6">
                       <h3 className="font-display text-xl font-bold text-gray-900 mb-3 group-hover:text-indigo-600 transition-colors duration-300">
                         {service.name}
@@ -211,7 +230,6 @@ export default function Services() {
                         {service.description}
                       </p>
 
-                      {/* Rating */}
                       <div className="flex items-center gap-1 mb-4">
                         {[...Array(5)].map((_, i) => (
                           <Star key={i} className="w-4 h-4 text-indigo-600 fill-current" />
@@ -230,7 +248,6 @@ export default function Services() {
               })}
             </div>
 
-            {/* Bottom CTA */}
             <motion.div
               initial={{ opacity: 0, y: 40 }}
               animate={{ opacity: 1, y: 0 }}
