@@ -88,33 +88,48 @@ export default function ServiceDetail() {
     }
   }, [testVersions, selectedVersion]);
 
-  // ✅ FIX: Simplified CTA handler - ALWAYS go to test page if test_code exists
-  const handleCTA = () => {
-    if (!service) return;
+  // ✅ CRITICAL FIX: CTA handler - ALWAYS prioritize test_code
+  const handleCTA = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     
-    // ✅ Priority 1: Test code (with or without version) - GO TO TEST PAGE
+    if (!service) {
+      console.error('❌ No service data');
+      return;
+    }
+    
+    console.log('🎯 CTA Clicked for service:', service.name);
+    console.log('📋 Service data:', {
+      test_code: service.test_code,
+      redirect_url: service.redirect_url,
+      action_type: service.action_type,
+      category: service.category
+    });
+    
+    // ✅ PRIORITY 1: Test code → GO TO TEST PAGE (NO EXCEPTIONS!)
     if (service.test_code) {
       let testUrl = createPageUrl(`Test?code=${service.test_code}`);
       
-      // Add version if selected
       if (selectedVersion && selectedVersion.version) {
         testUrl += `&version=${selectedVersion.version}`;
       }
       
-      console.log('🧪 Redirecting to test:', testUrl);
+      console.log('✅ Navigating to TEST PAGE:', testUrl);
       window.location.href = testUrl;
       return;
     }
     
-    // ✅ Priority 2: Custom redirect URL (for non-test services)
+    // ✅ PRIORITY 2: Redirect URL (for non-test services)
     if (service.redirect_url) {
-      console.log('🔗 Redirecting to:', service.redirect_url);
+      console.log('✅ Navigating to REDIRECT URL:', service.redirect_url);
       window.location.href = service.redirect_url;
       return;
     }
     
-    // ✅ Priority 3: Default booking modal (for counseling services)
-    console.log('📅 Opening booking modal');
+    // ✅ PRIORITY 3: Booking modal (ONLY for counseling services WITHOUT test_code)
+    console.log('✅ Opening BOOKING MODAL');
     window.dispatchEvent(new CustomEvent('open-booking-modal-with-service', { 
       detail: { service } 
     }));
@@ -123,22 +138,18 @@ export default function ServiceDetail() {
   const ctaText = useMemo(() => {
     if (!service) return 'Tìm hiểu thêm';
     
-    // ✅ If test service and user has history
     if (service.test_code && userTestHistory.length > 0) {
       return 'Làm lại bài test';
     }
     
-    // ✅ If test service (first time or no history)
     if (service.test_code) {
       return 'Làm bài test ngay';
     }
     
-    // ✅ Based on action_type
     if (service.action_type === 'test') return 'Làm bài test ngay';
     if (service.action_type === 'redirect') return 'Xem ngay';
     if (service.action_type === 'booking') return 'Đặt lịch tư vấn';
     
-    // ✅ Fallback based on category
     if (service.category === 'assessment') return 'Làm bài test ngay';
     if (service.redirect_url) return 'Xem ngay';
 
@@ -366,6 +377,7 @@ export default function ServiceDetail() {
               </div>
             )}
 
+            {/* ✅ MAIN CTA BUTTON */}
             <button 
               onClick={handleCTA}
               className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-4 rounded-xl font-medium hover:from-indigo-700 hover:to-purple-700 transition-all hover:scale-105 shadow-lg flex items-center justify-center gap-2"
@@ -407,6 +419,7 @@ export default function ServiceDetail() {
           </motion.div>
         )}
 
+        {/* ✅ BOTTOM CTA */}
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
