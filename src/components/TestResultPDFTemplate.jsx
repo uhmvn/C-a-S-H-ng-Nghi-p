@@ -1,5 +1,6 @@
+
 import React from "react";
-import { CheckCircle, Award, Target, Brain, BookOpen, TrendingUp, Sparkles, Calendar, AlertCircle, Lightbulb } from "lucide-react";
+import { CheckCircle, Award, Target, Brain, BookOpen, TrendingUp, Sparkles, Calendar, AlertCircle, Lightbulb, ArrowRight } from "lucide-react";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
 
