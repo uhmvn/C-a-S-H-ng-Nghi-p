@@ -19,6 +19,7 @@ import AdminUsers from './pages/AdminUsers';
 import UserProfile from './pages/UserProfile';
 import AdminAppointments from './pages/AdminAppointments';
 import AdminSchools from './pages/AdminSchools';
+import AdminTestResults from './pages/AdminTestResults';
 import AdminServices from './pages/AdminServices';
 import AdminAuditLog from './pages/AdminAuditLog';
 import AdminNotifications from './pages/AdminNotifications';
@@ -45,7 +46,6 @@ import ParentDashboard from './pages/ParentDashboard';
 import AdminStudentInfo from './pages/AdminStudentInfo';
 import CareerSurveyGame from './pages/CareerSurveyGame';
 import SurveyResult from './pages/SurveyResult';
-import AdminTestResults from './pages/AdminTestResults';
 import Layout from './Layout.jsx';
 
 
@@ -71,6 +71,7 @@ export const PAGES = {
     "UserProfile": UserProfile,
     "AdminAppointments": AdminAppointments,
     "AdminSchools": AdminSchools,
+    "AdminTestResults": AdminTestResults,
     "AdminServices": AdminServices,
     "AdminAuditLog": AdminAuditLog,
     "AdminNotifications": AdminNotifications,
@@ -97,7 +98,6 @@ export const PAGES = {
     "AdminStudentInfo": AdminStudentInfo,
     "CareerSurveyGame": CareerSurveyGame,
     "SurveyResult": SurveyResult,
-    "AdminTestResults": AdminTestResults,
 }
 
 export const pagesConfig = {
