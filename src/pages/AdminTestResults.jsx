@@ -167,7 +167,6 @@ function AdminTestResultsContent() {
     }
   });
 
-  // ✅ Get unique classes
   const uniqueClasses = useMemo(() => {
     const classes = new Set();
     users.forEach(u => {
@@ -176,7 +175,6 @@ function AdminTestResultsContent() {
     return Array.from(classes).sort();
   }, [users]);
 
-  // ✅ Advanced Filtering
   const filteredResults = useMemo(() => {
     let results = [...testResults];
 
@@ -265,7 +263,6 @@ function AdminTestResultsContent() {
     };
   }, [testResults]);
 
-  // ✅ Selection handlers
   const handleToggleSelect = (id) => {
     setSelectedIds(prev => 
       prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
@@ -339,7 +336,6 @@ function AdminTestResultsContent() {
     }
   };
 
-  // ✅ Enhanced CSV Export with full data
   const handleExportCSV = async (useSelected = false) => {
     if (!canExportTests) {
       toast.error('Bạn không có quyền export dữ liệu');
@@ -491,7 +487,7 @@ function AdminTestResultsContent() {
     }
   };
 
-  // ✅ PDF Export Function
+  // REDESIGNED PDF Export - Match Template
   const handleExportPDF = async (useSelected = false) => {
     if (!canExportTests) {
       toast.error('Bạn không có quyền export dữ liệu');
@@ -507,7 +503,7 @@ function AdminTestResultsContent() {
       return;
     }
 
-    if (resultsToExport.length > 50) {
+    if (resultsToExport.length > 20) {
       if (!confirm(`Bạn sắp export ${resultsToExport.length} báo cáo PDF. Quá trình này có thể mất vài phút. Tiếp tục?`)) {
         return;
       }
@@ -517,256 +513,544 @@ function AdminTestResultsContent() {
       setIsExporting(true);
       setExportProgress({ current: 0, total: resultsToExport.length });
 
-      // Dynamic import jsPDF
       const { jsPDF } = await import('jspdf');
-      const doc = new jsPDF();
+
+      // Helper function to check if content fits or needs a new page
+      const checkAndAddPage = (doc, currentY, requiredSpace, margin = 20) => {
+        const pageHeight = doc.internal.pageSize.height;
+        if (currentY + requiredSpace > pageHeight - margin) {
+          doc.addPage();
+          return margin;
+        }
+        return currentY;
+      };
+
+      // Helper to add page numbering
+      const addPageNumbering = (doc, pageNumber, totalPages, margin = 20) => {
+        doc.setFontSize(8);
+        doc.setTextColor(150, 150, 150);
+        doc.text(`Trang ${pageNumber} / ${totalPages}`, doc.internal.pageSize.width - margin, doc.internal.pageSize.height - 10, { align: 'right' });
+      };
       
       for (let i = 0; i < resultsToExport.length; i++) {
         const result = resultsToExport[i];
         setExportProgress({ current: i + 1, total: resultsToExport.length });
 
-        if (i > 0) doc.addPage();
-
+        const doc = new jsPDF();
         const user = users.find(u => u.user_id === result.user_id);
         
-        // Fetch AI eval & academic for this result
+        // Fetch AI eval & academic
         let aiEval = null;
-        let academicScoresDetail = []; // Rename to avoid conflict with outer academicScores
-        if (result.ai_evaluation_id) {
-          try {
+        let academicScoresDetail = [];
+        let previousResults = [];
+        
+        try {
+          if (result.ai_evaluation_id) {
             const evals = await base44.entities.AIEvaluation.filter({
               entity_id: result.id,
               evaluation_type: 'test_result'
             }, '-created_at', 1);
             aiEval = evals?.[0];
-          } catch (e) {
-            console.log('Error fetching AI eval for result ID', result.id, e);
           }
-        }
-        if (user?.user_id) {
-          try {
+
+          if (user?.user_id) {
             const scores = await base44.entities.AcademicScore.filter({ user_id: user.user_id });
             academicScoresDetail = scores || [];
-          } catch (e) {
-            console.log('Error fetching academic data for user ID', user.user_id, e);
+
+            const prevs = await base44.entities.TestResult.filter({
+              user_id: result.user_id,
+              test_id: result.test_id
+            }, '-completed_date', 5);
+            previousResults = (prevs || []).filter(r => r.id !== result.id);
           }
+        } catch (e) {
+          console.log('Error fetching data for PDF', e);
         }
 
         let y = 20;
+        const pageWidth = 210;
+        const margin = 20;
+        const contentWidth = pageWidth - (margin * 2);
 
-        // Header
-        doc.setFontSize(20);
-        doc.setTextColor(79, 70, 229);
-        doc.text('CUA SO NGHE NGHIEP', 105, y, { align: 'center' });
-        y += 10;
+        // ============ PAGE 1: HEADER & INFO ============
+        
+        // Logo area
+        doc.setFillColor(79, 70, 229);
+        doc.circle(30, y + 5, 8, 'F');
+        doc.setTextColor(255, 255, 255);
         doc.setFontSize(16);
-        doc.setTextColor(0, 0, 0);
-        doc.text('BAO CAO KET QUA TEST', 105, y, { align: 'center' });
+        doc.text('C', 30, y + 8, { align: 'center' });
+        
+        // Title
+        doc.setTextColor(79, 70, 229);
+        doc.setFontSize(22);
+        doc.text('CUA SO NGHE NGHIEP', 105, y + 8, { align: 'center' });
+        doc.setFontSize(10);
+        doc.setTextColor(100, 100, 100);
+        doc.text('Career Guidance', 105, y + 14, { align: 'center' });
+        
+        y += 30;
+
+        // Breadcrumb
+        doc.setFontSize(9);
+        doc.setTextColor(120, 120, 120);
+        doc.text('Trang chu > Ho so > Ket qua test', margin, y);
         y += 15;
 
-        // Test Info
-        doc.setFontSize(14);
-        doc.setTextColor(79, 70, 229);
-        doc.text(result.test_name || 'N/A', 105, y, { align: 'center' });
-        if (result.test_version) {
-          doc.setFontSize(10);
-          doc.setTextColor(100, 100, 100);
-          y += 6;
-          doc.text(`Version ${result.test_version}`, 105, y, { align: 'center' });
-        }
-        y += 12;
-
-        // Student Info
-        doc.setFontSize(11);
+        // Test Title Card
+        doc.setFillColor(248, 250, 252);
+        doc.roundedRect(margin, y, contentWidth, 35, 3, 3, 'F');
+        
+        doc.setFontSize(20);
         doc.setTextColor(0, 0, 0);
-        doc.text(`Hoc sinh: ${user?.full_name || 'N/A'}`, 20, y);
-        y += 6;
-        doc.text(`Ma HS: ${user?.user_code || 'N/A'}`, 20, y);
-        if (user?.class_name) {
-          doc.text(`Lop: ${user.class_name}`, 120, y);
+        doc.text(`Trac nghiem ${result.test_name}`, margin + 10, y + 12);
+        
+        if (result.test_version) {
+          doc.setFillColor(79, 70, 229);
+          doc.roundedRect(margin + 10, y + 18, 25, 8, 2, 2, 'F');
+          doc.setFontSize(9);
+          doc.setTextColor(255, 255, 255);
+          doc.text(`Version ${result.test_version}`, margin + 22.5, y + 23, { align: 'center' });
         }
-        y += 6;
-        doc.text(`Ngay: ${format(new Date(result.completed_date), 'dd/MM/yyyy HH:mm', { locale: vi })}`, 20, y);
+
+        // Completion info
+        doc.setFontSize(10);
+        doc.setTextColor(80, 80, 80);
+        doc.text(`Hoan thanh: ${format(new Date(result.completed_date), 'dd/MM/yyyy HH:mm', { locale: vi })}`, margin + 10, y + 28);
+        
         if (result.duration_seconds) {
           const mins = Math.floor(result.duration_seconds / 60);
           const secs = result.duration_seconds % 60;
-          doc.text(`Thoi gian: ${mins} phut ${secs} giay`, 120, y);
+          doc.text(`Thoi gian: ${mins} phut ${secs} giay`, margin + 100, y + 28);
         }
-        y += 12;
+        
+        y += 45;
 
-        // Separator
-        doc.setDrawColor(79, 70, 229);
-        doc.setLineWidth(0.5);
-        doc.line(20, y, 190, y);
-        y += 10;
-
-        // Results
-        doc.setFontSize(13);
-        doc.setTextColor(79, 70, 229);
-        doc.text('KET QUA TONG HOP', 20, y);
-        y += 8;
-
-        doc.setFontSize(10);
-        doc.setTextColor(0, 0, 0);
-        if (result.top_types && result.top_types.length > 0) {
-          result.top_types.slice(0, 3).forEach((type, idx) => {
-            const lineText = `#${idx + 1} ${type.name || type.type || 'N/A'} - ${type.percentage || 0}% (Diem: ${type.score?.toFixed(1) || 'N/A'})`;
-            const lines = doc.splitTextToSize(lineText, 160);
-            lines.forEach(line => {
-              if (y > 270) { doc.addPage(); y = 20; }
-              doc.text(line, 25, y);
-              y += 5;
-            });
-          });
-        } else {
-          doc.text('Khong co ket qua chi tiet', 25, y);
-          y += 6;
-        }
-        y += 6;
-
-        // AI Analysis
+        // Badges (AI analyzed, Download)
         if (aiEval) {
-          if (y > 250) { doc.addPage(); y = 20; }
-          doc.setFontSize(13);
-          doc.setTextColor(147, 51, 234);
-          doc.text(`PHAN TICH AI (Do tin cay: ${aiEval.confidence_score || 0}%)`, 20, y);
-          y += 8;
-
-          doc.setFontSize(10);
-          doc.setTextColor(0, 0, 0);
-
-          if (aiEval.strengths && aiEval.strengths.length > 0) {
-            doc.setTextColor(16, 185, 129);
-            doc.text('Diem manh:', 25, y);
-            y += 5;
-            doc.setTextColor(0, 0, 0);
-            aiEval.strengths.forEach(s => {
-              const lines = doc.splitTextToSize(`• ${s}`, 160);
-              lines.forEach(line => {
-                if (y > 270) { doc.addPage(); y = 20; }
-                doc.text(line, 30, y);
-                y += 5;
-              });
-            });
-            y += 3;
-          }
-
-          if (aiEval.weaknesses && aiEval.weaknesses.length > 0) {
-            doc.setTextColor(251, 146, 60);
-            doc.text('Can cai thien:', 25, y);
-            y += 5;
-            doc.setTextColor(0, 0, 0);
-            aiEval.weaknesses.forEach(w => {
-              const lines = doc.splitTextToSize(`• ${w}`, 160);
-              lines.forEach(line => {
-                if (y > 270) { doc.addPage(); y = 20; }
-                doc.text(line, 30, y);
-                y += 5;
-              });
-            });
-            y += 3;
-          }
-
-          if (aiEval.recommendations && aiEval.recommendations.length > 0) {
-            doc.setTextColor(79, 70, 229);
-            doc.text('Khuyen nghi:', 25, y);
-            y += 5;
-            doc.setTextColor(0, 0, 0);
-            aiEval.recommendations.forEach((rec, idx) => {
-              const text = rec.title || rec.description || `Khuyen nghi ${idx + 1}`;
-              const lines = doc.splitTextToSize(`${idx + 1}. ${text}`, 160);
-              lines.forEach(line => {
-                if (y > 270) { doc.addPage(); y = 20; }
-                doc.text(line, 30, y);
-                y += 5;
-              });
-            });
-            y += 3;
-          }
-          y += 5;
+          doc.setFillColor(147, 51, 234);
+          doc.roundedRect(pageWidth - margin - 50, y, 50, 8, 2, 2, 'F');
+          doc.setFontSize(8);
+          doc.setTextColor(255, 255, 255);
+          doc.text('Da phan tich AI', pageWidth - margin - 25, y + 5.5, { align: 'center' });
         }
+        
+        y += 15;
 
-        // Careers
-        if (result.suggested_careers && result.suggested_careers.length > 0) {
-          if (y > 250) {
-            doc.addPage();
-            y = 20;
-          }
-          doc.setFontSize(13);
-          doc.setTextColor(16, 185, 129);
-          doc.text('NGHE NGHIEP GOI Y', 20, y);
-          y += 8;
-          doc.setFontSize(10);
-          doc.setTextColor(0, 0, 0);
-          result.suggested_careers.forEach(career => {
-            const lines = doc.splitTextToSize(`• ${career}`, 160);
-            lines.forEach(line => {
-                if (y > 270) { doc.addPage(); y = 20; }
-                doc.text(line, 25, y);
-                y += 5;
-            });
+        // Stats boxes
+        const statsData = [
+          { icon: '🏆', value: result.answers_count || 0, label: 'Cau tra loi' },
+          { icon: '🎯', value: result.top_types?.length || 0, label: 'Xu huong chinh' },
+          { icon: '📈', value: previousResults.length + 1, label: 'Lan lam test' }
+        ];
+
+        const boxWidth = (contentWidth - 10) / 3;
+        statsData.forEach((stat, idx) => {
+          const x = margin + (idx * (boxWidth + 5));
+          doc.setFillColor(248, 250, 252);
+          doc.roundedRect(x, y, boxWidth, 30, 2, 2, 'F');
+          
+          doc.setFontSize(24);
+          doc.text(stat.icon, x + boxWidth/2, y + 12, { align: 'center' });
+          
+          doc.setFontSize(18);
+          doc.setTextColor(79, 70, 229);
+          doc.text(String(stat.value), x + boxWidth/2, y + 21, { align: 'center' });
+          
+          doc.setFontSize(8);
+          doc.setTextColor(100, 100, 100);
+          doc.text(stat.label, x + boxWidth/2, y + 26, { align: 'center' });
+        });
+        
+        y += 40;
+
+        // ============ PAGE 2: RESULTS ============
+        doc.addPage();
+        y = 20;
+
+        // Section Header
+        doc.setFontSize(16);
+        doc.setTextColor(79, 70, 229);
+        doc.text('🎯 Ket Qua Tinh Cach Cua Ban', margin, y);
+        y += 15;
+
+        // Top 3 Results in gradient cards
+        if (result.top_types && result.top_types.length > 0) {
+          const gradients = [
+            { r: 79, g: 70, b: 229, label: '#1' },   // Indigo
+            { r: 147, g: 51, b: 234, label: '#2' },  // Purple
+            { r: 59, g: 130, b: 246, label: '#3' }   // Blue
+          ];
+
+          result.top_types.slice(0, 3).forEach((type, idx) => {
+            y = checkAndAddPage(doc, y, 40); // 35 for card + 5 spacing
+            const grad = gradients[idx];
+            
+            // Card background
+            doc.setFillColor(grad.r, grad.g, grad.b);
+            doc.roundedRect(margin, y, contentWidth, 35, 3, 3, 'F');
+            
+            // Badge number
+            doc.setFontSize(36);
+            doc.setTextColor(255, 255, 255);
+            doc.setGState(doc.GState({ opacity: 0.2 }));
+            doc.text(grad.label, pageWidth - margin - 15, y + 25, { align: 'right' });
+            doc.setGState(doc.GState({ opacity: 1 }));
+            
+            // Type name
+            doc.setFontSize(16);
+            doc.setTextColor(255, 255, 255);
+            const typeName = type.name || type.type || 'N/A';
+            doc.text(typeName, margin + 10, y + 12);
+            
+            // Percentage
+            doc.setFontSize(32);
+            doc.text(`${type.percentage || 0}%`, margin + 10, y + 28);
+            
+            // Score
+            doc.setFontSize(10);
+            doc.text(`Diem: ${type.score?.toFixed(1) || 'N/A'}`, margin + 45, y + 28);
+            
+            y += 40;
           });
-          y += 5;
+          
+          // Interpretation
+          if (result.interpretation) {
+            y += 5;
+            const interpLines = doc.splitTextToSize(result.interpretation, contentWidth - 20);
+            const interpHeight = interpLines.length * 5 + 10;
+            y = checkAndAddPage(doc, y, interpHeight + 10);
+            
+            doc.setFillColor(238, 242, 255);
+            doc.roundedRect(margin, y, contentWidth, interpHeight, 2, 2, 'F');
+            doc.setFontSize(9);
+            doc.setTextColor(60, 60, 60);
+            doc.text(interpLines, margin + 10, y + 8);
+            y += interpHeight + 10;
+          }
         }
 
-        // Academic
-        if (academicScoresDetail.length > 0) {
-          if (y > 230) {
-            doc.addPage();
-            y = 20;
+        // ============ PAGE 3: AI ANALYSIS ============
+        if (aiEval) {
+          doc.addPage();
+          y = 20;
+
+          // AI Header
+          doc.setFillColor(245, 243, 255);
+          doc.roundedRect(margin, y, contentWidth, 25, 3, 3, 'F');
+          
+          doc.setFontSize(18);
+          doc.setTextColor(79, 70, 229);
+          doc.text('Phan Tich AI Chuyen Sau', margin + 10, y + 10);
+          
+          doc.setFontSize(9);
+          doc.setTextColor(100, 100, 100);
+          doc.text(`Do tin cay: ${aiEval.confidence_score || 0}% | Model: ${aiEval.ai_model || 'gpt-4o'}`, margin + 10, y + 18);
+          
+          y += 35;
+
+          // Strengths & Weaknesses side by side
+          const colWidth = (contentWidth - 5) / 2;
+          
+          // Strengths
+          if (aiEval.strengths && aiEval.strengths.length > 0) {
+            y = checkAndAddPage(doc, y, 70); // for strength/weakness box
+            doc.setFillColor(240, 253, 244);
+            doc.roundedRect(margin, y, colWidth, 60, 2, 2, 'F');
+            doc.setDrawColor(16, 185, 129);
+            doc.setLineWidth(2);
+            doc.line(margin, y, margin, y + 60);
+            
+            doc.setFontSize(12);
+            doc.setTextColor(5, 150, 105);
+            doc.text('Diem Manh', margin + 5, y + 8);
+            
+            doc.setFontSize(9);
+            doc.setTextColor(30, 30, 30);
+            let strengthY = y + 16;
+            aiEval.strengths.slice(0, 4).forEach(s => {
+              const lines = doc.splitTextToSize(`✓ ${s}`, colWidth - 15);
+              doc.text(lines, margin + 8, strengthY);
+              strengthY += lines.length * 5;
+            });
           }
+
+          // Weaknesses
+          if (aiEval.weaknesses && aiEval.weaknesses.length > 0) {
+            y = checkAndAddPage(doc, y, 70); // for strength/weakness box
+            doc.setFillColor(255, 251, 235);
+            doc.roundedRect(margin + colWidth + 5, y, colWidth, 60, 2, 2, 'F');
+            doc.setDrawColor(251, 146, 60);
+            doc.setLineWidth(2);
+            doc.line(margin + colWidth + 5, y, margin + colWidth + 5, y + 60);
+            
+            doc.setFontSize(12);
+            doc.setTextColor(234, 88, 12);
+            doc.text('Can Cai Thien', margin + colWidth + 10, y + 8);
+            
+            doc.setFontSize(9);
+            doc.setTextColor(30, 30, 30);
+            let weakY = y + 16;
+            aiEval.weaknesses.slice(0, 4).forEach(w => {
+              const lines = doc.splitTextToSize(`→ ${w}`, colWidth - 15);
+              doc.text(lines, margin + colWidth + 13, weakY);
+              weakY += lines.length * 5;
+            });
+          }
+          
+          y += 70;
+
+          // Recommendations
+          if (aiEval.recommendations && aiEval.recommendations.length > 0) {
+            const recSectionHeight = 80; // Estimate space needed
+            y = checkAndAddPage(doc, y, recSectionHeight + 10);
+
+            doc.setFillColor(238, 242, 255);
+            doc.roundedRect(margin, y, contentWidth, recSectionHeight, 2, 2, 'F'); // This height may need dynamic adjustment
+            doc.setDrawColor(79, 70, 229);
+            doc.setLineWidth(2);
+            doc.line(margin, y, margin, y + recSectionHeight);
+            
+            doc.setFontSize(12);
+            doc.setTextColor(79, 70, 229);
+            doc.text('💡 Khuyen Nghi Phat Trien', margin + 5, y + 8);
+            
+            doc.setFontSize(9);
+            doc.setTextColor(30, 30, 30);
+            let recY = y + 16;
+            aiEval.recommendations.slice(0, 5).forEach((rec, idx) => {
+              const title = rec.title || `Khuyen nghi ${idx + 1}`;
+              const desc = rec.description || '';
+              
+              doc.setTextColor(79, 70, 229);
+              doc.text(`${idx + 1}. ${title}`, margin + 8, recY);
+              recY += 5;
+              
+              if (desc) {
+                doc.setTextColor(60, 60, 60);
+                const descLines = doc.splitTextToSize(desc, contentWidth - 20);
+                doc.text(descLines, margin + 12, recY);
+                recY += descLines.length * 4 + 3;
+              }
+            });
+            y += recSectionHeight + 10;
+          }
+        }
+
+        // ============ PAGE 4: CAREERS & ACADEMIC ============
+        doc.addPage();
+        y = 20;
+
+        // Career Suggestions
+        if (result.suggested_careers && result.suggested_careers.length > 0) {
+          doc.setFontSize(16);
+          doc.setTextColor(79, 70, 229);
+          doc.text('🎯 Top Nghe Nghiep Phu Hop', margin, y);
+          y += 12;
+
+          result.suggested_careers.slice(0, 8).forEach((career, idx) => {
+            const careerBlockHeight = 25; // Height for each career block
+            y = checkAndAddPage(doc, y, careerBlockHeight + 5);
+
+            doc.setFillColor(238, 242, 255);
+            doc.roundedRect(margin, y, contentWidth, 20, 2, 2, 'F');
+            
+            doc.setFontSize(11);
+            doc.setTextColor(30, 30, 30);
+            doc.text(career, margin + 10, y + 8);
+            
+            doc.setFontSize(14);
+            doc.setTextColor(79, 70, 229);
+            doc.text('85%', pageWidth - margin - 15, y + 9, { align: 'right' });
+            
+            doc.setFontSize(8);
+            doc.setTextColor(100, 100, 100);
+            const reasonText = aiEval?.analysis?.suggested_careers?.[idx]?.reason || 'Phu hop voi tinh cach cua ban';
+            const reasonLines = doc.splitTextToSize(reasonText, contentWidth - 60);
+            doc.text(reasonLines, margin + 10, y + 14);
+            
+            y += 25;
+          });
+          
+          y += 10;
+        }
+
+        // Academic Scores
+        if (academicScoresDetail.length > 0) {
           const validScores = academicScoresDetail.filter(s => typeof s.average_score === 'number');
           if (validScores.length > 0) {
             const gpa = (validScores.reduce((sum, s) => sum + s.average_score, 0) / validScores.length).toFixed(2);
             
-            doc.setFontSize(13);
+            const academicSectionHeight = 15 + 10 + Math.ceil(validScores.length / 4) * (40 + 5) + 10; // Estimate
+            y = checkAndAddPage(doc, y, academicSectionHeight);
+            
+            doc.setFontSize(16);
             doc.setTextColor(59, 130, 246);
-            doc.text(`DIEM HOC TAP (GPA: ${gpa})`, 20, y);
-            y += 8;
-            
-            doc.setFontSize(9);
-            doc.setTextColor(0, 0, 0);
-            const topAcademic = validScores.sort((a, b) => (b.average_score || 0) - (a.average_score || 0)).slice(0, 6);
-            
-            // Layout academic scores in two columns
-            const col1X = 25;
-            const col2X = 110;
-            let currentAcademicY = y;
+            doc.text(`📚 Ket Hop Voi Ket Qua Hoc Tap (GPA: ${gpa})`, margin, y);
+            y += 12;
 
+            doc.setFontSize(9);
+            doc.setTextColor(80, 80, 80);
+            doc.text(`Dua tren ${validScores.length} diem hoc tap, AI da phan tich va dua ra goi y phu hop.`, margin, y);
+            y += 10;
+
+            const topAcademic = validScores.sort((a, b) => (b.average_score || 0) - (a.average_score || 0)).slice(0, 8);
+            const boxSize = 40;
+            const gap = 5;
+            const cols = 4;
+            
             topAcademic.forEach((score, idx) => {
-              if (idx % 2 === 0) { // First column
-                if (currentAcademicY > 270) { doc.addPage(); currentAcademicY = 20; }
-                doc.text(`${score.subject_name}: ${score.average_score.toFixed(1)}`, col1X, currentAcademicY);
-              } else { // Second column
-                if (currentAcademicY > 270) { doc.addPage(); currentAcademicY = 20; }
-                doc.text(`${score.subject_name}: ${score.average_score.toFixed(1)}`, col2X, currentAcademicY);
-                currentAcademicY += 5; // Increment y only after second column item
-              }
+              const col = idx % cols;
+              const row = Math.floor(idx / cols);
+              const x = margin + (col * (boxSize + gap));
+              const boxY = y + (row * (boxSize + gap));
+              
+              y = checkAndAddPage(doc, boxY, boxSize + gap); // Check before drawing box
+
+              doc.setFillColor(239, 246, 255);
+              doc.roundedRect(x, boxY, boxSize, boxSize, 2, 2, 'F');
+              doc.setDrawColor(191, 219, 254);
+              doc.setLineWidth(0.5);
+              doc.roundedRect(x, boxY, boxSize, boxSize, 2, 2, 'S');
+              
+              doc.setFontSize(7);
+              doc.setTextColor(100, 100, 100);
+              const subjectLines = doc.splitTextToSize(score.subject_name, boxSize - 4);
+              doc.text(subjectLines, x + boxSize/2, boxY + 8, { align: 'center' });
+              
+              doc.setFontSize(16);
+              doc.setTextColor(59, 130, 246);
+              doc.text(score.average_score.toFixed(1), x + boxSize/2, boxY + 28, { align: 'center' });
             });
-            if (topAcademic.length % 2 !== 0) currentAcademicY += 5; // Ensure spacing if odd number of items
-            y = currentAcademicY + 5; // Update main y coordinate
+            
+            y += Math.ceil(topAcademic.length / cols) * (boxSize + gap) + 10;
           }
         }
 
-        // Footer
-        if (y > 275) { // Check before adding footer
+        // ============ PAGE 5: PROGRESS COMPARISON ============
+        if (previousResults.length > 0) {
           doc.addPage();
-          y = 20; // Reset y for new page
-        }
-        doc.setFontSize(8);
-        doc.setTextColor(150, 150, 150);
-        doc.text(`Trang ${i + 1}/${resultsToExport.length} - Bao cao duoc tao boi he thong Cua So Nghe Nghiep`, 105, 290, { align: 'center' });
-      }
+          y = 20;
 
-      const pdfBlob = doc.output('blob');
-      const url = URL.createObjectURL(pdfBlob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `test_results_report_${new Date().toISOString().split('T')[0]}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+          y = checkAndAddPage(doc, y, 40); // For header
+          doc.setFillColor(236, 253, 245);
+          doc.roundedRect(margin, y, contentWidth, 20, 2, 2, 'F');
+          doc.setDrawColor(16, 185, 129);
+          doc.setLineWidth(1.5);
+          doc.line(margin, y, margin, y + 20);
+          
+          doc.setFontSize(16);
+          doc.setTextColor(5, 150, 105);
+          doc.text('📈 Tien Bo So Voi Lan Truoc', margin + 5, y + 12);
+          
+          y += 30;
+
+          const latestPrev = previousResults[0];
+          
+          y = checkAndAddPage(doc, y, 20); // For intro text
+          doc.setFontSize(10);
+          doc.setTextColor(80, 80, 80);
+          doc.text(`Ban da lam ${previousResults.length + 1} lan. Lan gan nhat: ${format(new Date(latestPrev.completed_date), 'dd/MM/yyyy', { locale: vi })}`, margin, y);
+          y += 12;
+
+          // Comparison table
+          const compColWidth = (contentWidth - 5) / 2;
+          const compBlockHeight = 50;
+          y = checkAndAddPage(doc, y, compBlockHeight + 10);
+
+          // Current results
+          doc.setFillColor(255, 255, 255);
+          doc.roundedRect(margin, y, compColWidth, compBlockHeight, 2, 2, 'F');
+          doc.setDrawColor(200, 200, 200);
+          doc.roundedRect(margin, y, compColWidth, compBlockHeight, 2, 2, 'S');
+          
+          doc.setFontSize(11);
+          doc.setTextColor(16, 185, 129);
+          doc.text('Hien Tai', margin + 5, y + 8);
+          
+          doc.setFontSize(9);
+          doc.setTextColor(30, 30, 30);
+          let currentY = y + 16;
+          (result.top_types || []).slice(0, 3).forEach(type => {
+            doc.text(`${type.name || type.type}: ${type.percentage}%`, margin + 5, currentY);
+            currentY += 5;
+          });
+          
+          // Previous results
+          doc.setFillColor(255, 255, 255);
+          doc.roundedRect(margin + compColWidth + 5, y, compColWidth, compBlockHeight, 2, 2, 'F');
+          doc.setDrawColor(200, 200, 200);
+          doc.roundedRect(margin + compColWidth + 5, y, compColWidth, compBlockHeight, 2, 2, 'S');
+          
+          doc.setFontSize(11);
+          doc.setTextColor(100, 100, 100);
+          doc.text('Lan Truoc', margin + compColWidth + 10, y + 8);
+          
+          doc.setFontSize(9);
+          doc.setTextColor(80, 80, 80);
+          let prevY = y + 16;
+          (latestPrev.top_types || []).slice(0, 3).forEach(type => {
+            doc.text(`${type.name || type.type}: ${type.percentage}%`, margin + compColWidth + 10, prevY);
+            prevY += 5;
+          });
+          
+          y += compBlockHeight + 10;
+        }
+
+        // Add page numbering to all pages of the current document
+        const totalPagesInDoc = doc.internal.getNumberOfPages();
+        for (let p = 1; p <= totalPagesInDoc; p++) {
+          doc.setPage(p);
+          addPageNumbering(doc, p, totalPagesInDoc);
+        }
+
+        // ============ FOOTER (on last page only) ============
+        doc.setPage(totalPagesInDoc); // Ensure footer is on the very last page
+        const lastPageHeight = doc.internal.pageSize.height;
+        let footerY = lastPageHeight - 50; // Starting position for the footer block
+
+        doc.setFontSize(10);
+        doc.setTextColor(150, 150, 150);
+        doc.text('Can tu van chuyen sau?', 105, footerY, { align: 'center' });
+        doc.setFontSize(9);
+        doc.text('Dat lich voi chuyen gia de phan tich chi tiet va lo trinh phat trien', 105, footerY + 6, { align: 'center' });
+        
+        // Contact info
+        footerY = lastPageHeight - 30;
+        doc.setFillColor(79, 70, 229);
+        doc.circle(105, footerY, 6, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(10);
+        doc.text('C', 105, footerY + 3, { align: 'center' });
+        
+        footerY += 12;
+        doc.setFontSize(12);
+        doc.setTextColor(79, 70, 229);
+        doc.text('CUA SO NGHE NGHIEP', 105, footerY, { align: 'center' });
+        
+        footerY += 8;
+        doc.setFontSize(8);
+        doc.setTextColor(120, 120, 120);
+        doc.text('Nen tang huong nghiep thong minh danh cho hoc sinh THCS & THPT', 105, footerY, { align: 'center' });
+
+
+        // Save individual PDF
+        const pdfBlob = doc.output('blob');
+        const url = URL.createObjectURL(pdfBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        const fileName = `test_result_${user?.user_code || result.user_id}_${new Date().toISOString().split('T')[0]}.pdf`;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        // Small delay between files
+        if (i < resultsToExport.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 300));
+        }
+      }
 
       await base44.entities.AuditLog.create({
         user_id: currentUser.id,
@@ -778,7 +1062,7 @@ function AdminTestResultsContent() {
         status: 'success'
       });
 
-      toast.success(`Đã export PDF ${resultsToExport.length} kết quả`);
+      toast.success(`Đã export ${resultsToExport.length} báo cáo PDF`);
     } catch (error) {
       console.error('PDF export error:', error);
       toast.error('Lỗi export PDF: ' + error.message);
@@ -973,7 +1257,7 @@ function AdminTestResultsContent() {
           </div>
         </div>
 
-        {/* ✅ Bulk Selection Panel */}
+        {/* Bulk Selection Panel */}
         <AnimatePresence>
           {selectedIds.length > 0 && (
             <motion.div
@@ -1026,7 +1310,7 @@ function AdminTestResultsContent() {
           )}
         </AnimatePresence>
 
-        {/* ✅ Export Progress */}
+        {/* Export Progress */}
         {isExporting && exportProgress.total > 0 && (
           <div className="bg-blue-50 border-2 border-blue-300 rounded-2xl p-6 mb-6">
             <div className="flex items-center gap-3 mb-3">
@@ -1045,7 +1329,7 @@ function AdminTestResultsContent() {
           </div>
         )}
 
-        {/* ✅ Advanced Filters */}
+        {/* Advanced Filters */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border-2 border-indigo-100 mb-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-bold text-gray-900 flex items-center gap-2">
@@ -1182,7 +1466,7 @@ function AdminTestResultsContent() {
         </div>
 
         {isLoading ? (
-          <SkeletonTable rows={10} cols={6} />
+          <SkeletonTable rows={10} cols={7} />
         ) : filteredResults.length === 0 ? (
           <EmptyState
             icon={FileText}
@@ -1195,7 +1479,7 @@ function AdminTestResultsContent() {
               <table className="w-full">
                 <thead className="bg-gradient-to-r from-indigo-50 to-purple-50 border-b-2 border-indigo-200">
                   <tr>
-                    <th className="px-6 py-4 text-center">
+                    <th className="px-4 py-4 text-center w-12">
                       <input
                         type="checkbox"
                         checked={selectedIds.length === paginatedResults.length && paginatedResults.length > 0}
@@ -1204,11 +1488,11 @@ function AdminTestResultsContent() {
                       />
                     </th>
                     <th className="px-6 py-4 text-left text-sm font-bold text-gray-900">Học sinh</th>
-                    <th className="px-6 py-4 text-left text-sm font-bold text-gray-900">Loại test</th>
+                    <th className="px-4 py-4 text-left text-sm font-bold text-gray-900">Loại test</th>
                     <th className="px-6 py-4 text-left text-sm font-bold text-gray-900">Tên test</th>
                     <th className="px-6 py-4 text-left text-sm font-bold text-gray-900">Kết quả nổi bật</th>
-                    <th className="px-6 py-4 text-left text-sm font-bold text-gray-900">Ngày hoàn thành</th>
-                    <th className="px-6 py-4 text-center text-sm font-bold text-gray-900">Thao tác</th>
+                    <th className="px-4 py-4 text-left text-sm font-bold text-gray-900">Ngày hoàn thành</th>
+                    <th className="px-4 py-4 text-center text-sm font-bold text-gray-900">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -1217,12 +1501,16 @@ function AdminTestResultsContent() {
                     const topResult = result.top_types?.[0];
                     const isSelected = selectedIds.includes(result.id);
                     
+                    // Truncate user code
+                    const userCode = user?.user_code || result.user_id;
+                    const truncatedCode = userCode.length > 15 ? userCode.substring(0, 12) + '...' : userCode;
+                    
                     return (
                       <tr 
                         key={result.id} 
-                        className={`hover:bg-indigo-50/50 transition-colors ${isSelected ? 'bg-indigo-50' : ''}`}
+                        className={`hover:bg-indigo-50/50 transition-colors ${isSelected ? 'bg-indigo-50 border-l-4 border-indigo-600' : ''}`}
                       >
-                        <td className="px-6 py-4 text-center">
+                        <td className="px-4 py-4 text-center">
                           <input
                             type="checkbox"
                             checked={isSelected}
@@ -1232,17 +1520,20 @@ function AdminTestResultsContent() {
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center">
+                            <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
                               <User className="w-5 h-5 text-white" />
                             </div>
-                            <div>
-                              <p className="font-bold text-gray-900">{user?.user_code || result.user_id}</p>
-                              <p className="text-xs text-gray-500">{user?.full_name || 'N/A'}</p>
+                            <div className="min-w-0">
+                              <p className="font-bold text-gray-900 truncate">{user?.full_name || 'N/A'}</p>
+                              <p className="text-xs text-gray-500" title={userCode}>{truncatedCode}</p>
+                              {user?.class_name && (
+                                <p className="text-xs text-indigo-600">Lớp {user.class_name}</p>
+                              )}
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4">
-                          <span className={`px-3 py-1.5 rounded-full text-xs font-bold shadow-sm ${
+                        <td className="px-4 py-4">
+                          <span className={`px-3 py-1.5 rounded-full text-xs font-bold shadow-sm whitespace-nowrap ${
                             result.test_type === 'holland' ? 'bg-blue-500 text-white' :
                             result.test_type === 'mbti' ? 'bg-purple-500 text-white' :
                             result.test_type === 'iq' ? 'bg-green-500 text-white' :
@@ -1253,34 +1544,38 @@ function AdminTestResultsContent() {
                           </span>
                         </td>
                         <td className="px-6 py-4">
-                          <p className="font-medium text-gray-900">{result.test_name}</p>
-                          {result.test_version && (
-                            <p className="text-xs text-gray-500">v{result.test_version}</p>
-                          )}
+                          <div>
+                            <p className="font-medium text-gray-900">{result.test_name}</p>
+                            {result.test_version && (
+                              <p className="text-xs text-gray-500">v{result.test_version}</p>
+                            )}
+                          </div>
                         </td>
                         <td className="px-6 py-4">
                           {topResult ? (
                             <div className="flex items-center gap-2">
-                              <Award className="w-4 h-4 text-yellow-600" />
-                              <div>
-                                <p className="font-medium text-gray-900 text-sm">{topResult.name || topResult.type}</p>
-                                <p className="text-xs text-gray-600">{topResult.percentage}%</p>
+                              <Award className="w-4 h-4 text-yellow-600 flex-shrink-0" />
+                              <div className="min-w-0">
+                                <p className="font-medium text-gray-900 text-sm truncate">{topResult.name || topResult.type}</p>
+                                <p className="text-xs text-indigo-600 font-bold">{topResult.percentage}%</p>
                               </div>
                             </div>
                           ) : (
                             <span className="text-gray-400 text-sm">N/A</span>
                           )}
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-4 py-4">
                           <div className="flex items-center gap-2 text-sm text-gray-600">
-                            <Calendar className="w-4 h-4" />
-                            {format(new Date(result.completed_date), 'dd/MM/yyyy', { locale: vi })}
+                            <Calendar className="w-4 h-4 flex-shrink-0" />
+                            <div>
+                              <p>{format(new Date(result.completed_date), 'dd/MM/yyyy', { locale: vi })}</p>
+                              <p className="text-xs text-gray-500">
+                                {format(new Date(result.completed_date), 'HH:mm', { locale: vi })}
+                              </p>
+                            </div>
                           </div>
-                          <p className="text-xs text-gray-500">
-                            {format(new Date(result.completed_date), 'HH:mm', { locale: vi })}
-                          </p>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-4 py-4">
                           <div className="flex gap-2 justify-center">
                             <button
                               onClick={() => handleViewDetail(result)}
