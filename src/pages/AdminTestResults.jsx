@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { FileText, Search, Filter, Eye, Download, Calendar, User, CheckCircle, X, BarChart3, Shield, Target, BookOpen, MessageCircle, Brain, TrendingUp, Award, AlertCircle, Sparkles, ExternalLink, ChevronRight, FileDown, Printer, CheckSquare, Square, Loader2, SlidersHorizontal } from "lucide-react";
+import { FileText, Search, Eye, Download, Calendar, User, CheckCircle, X, BarChart3, Shield, Target, BookOpen, Brain, TrendingUp, Award, AlertCircle, Sparkles, ExternalLink, ChevronRight, FileDown, CheckSquare, Loader2, SlidersHorizontal } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AdminLayout from "@/components/AdminLayout";
@@ -68,4 +68,58 @@ function AdminTestResultsContent() {
   }, [userPermissions, currentUser]);
 
   const canDeleteTests = useMemo(() => {
-    return user
+    return userPermissions.includes('delete_tests') || 
+           userPermissions.includes('manage_all_tests') ||
+           currentUser?.role === 'admin';
+  }, [userPermissions, currentUser]);
+
+  const canExportTests = useMemo(() => {
+    return userPermissions.includes('export_tests') || 
+           userPermissions.includes('manage_all_tests') ||
+           currentUser?.role === 'admin';
+  }, [userPermissions, currentUser]);
+
+  const { data: testResults = [], isLoading } = useQuery({
+    queryKey: ['testResults'],
+    queryFn: async () => {
+      if (!currentUser) return [];
+      if (canViewAllTests) {
+        return await base44.entities.TestResult.list('-completed_date', 1000);
+      } else {
+        return await base44.entities.TestResult.filter(
+          { user_id: currentUser.id },
+          '-completed_date'
+        );
+      }
+    },
+    enabled: !!currentUser,
+    initialData: []
+  });
+
+  const { data: userProfiles = [] } = useQuery({
+    queryKey: ['testUserProfiles'],
+    queryFn: () => base44.entities.UserProfile.list('-created_date', 2000),
+    enabled: canViewAllTests,
+    initialData: []
+  });
+
+  const { data: userAccounts = [] } = useQuery({
+    queryKey: ['testUserAccounts'],
+    queryFn: () => base44.entities.User.list('-created_date', 2000),
+    enabled: canViewAllTests,
+    initialData: []
+  });
+
+  const users = useMemo(() => {
+    return userProfiles.map(profile => {
+      const account = userAccounts.find(acc => acc.id === profile.user_id);
+      return {
+        ...profile,
+        full_name: account?.full_name || profile.full_name || 'N/A',
+        email: account?.email || 'N/A'
+      };
+    });
+  }, [userProfiles, userAccounts]);
+
+  const { data: aiEvaluation } = useQuery({
+    queryKey: ['aiEvaluation',
