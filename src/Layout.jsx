@@ -179,6 +179,7 @@ export default function Layout({ children, currentPageName }) {
     const baseItems = [
       { name: "Trang chủ", url: "/", roles: ['all'] },
       { name: "Dịch vụ", url: createPageUrl("Services"), roles: ['all'] },
+      { name: "Game Khảo Sát", url: createPageUrl("CareerSurveyGame"), roles: ['all'] },
       { name: "Tổ hợp môn", url: createPageUrl("SubjectCombinations"), roles: ['all'] },
       { name: "Trường học", url: createPageUrl("Schools"), roles: ['all'] },
       { name: "Về chúng tôi", url: createPageUrl("Gallery"), roles: ['all'] },
