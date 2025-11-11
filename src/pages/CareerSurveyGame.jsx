@@ -6,7 +6,46 @@ import { useMutation } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import Breadcrumb from "@/components/Breadcrumb";
-import Confetti from 'react-confetti';
+
+// ✅ Custom Confetti Component (no external dependency)
+const CustomConfetti = () => {
+  const confettiPieces = Array.from({ length: 50 }, (_, i) => ({
+    id: i,
+    left: `${Math.random() * 100}%`,
+    delay: Math.random() * 0.5,
+    duration: 2 + Math.random() * 2,
+    color: ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'][Math.floor(Math.random() * 6)]
+  }));
+
+  return (
+    <div className="fixed inset-0 pointer-events-none z-50">
+      {confettiPieces.map((piece) => (
+        <motion.div
+          key={piece.id}
+          initial={{ y: -20, x: piece.left, opacity: 1, rotate: 0 }}
+          animate={{ 
+            y: window.innerHeight + 20, 
+            rotate: 360,
+            opacity: 0 
+          }}
+          transition={{ 
+            duration: piece.duration, 
+            delay: piece.delay,
+            ease: "easeIn"
+          }}
+          style={{ 
+            position: 'absolute',
+            left: piece.left,
+            width: '10px',
+            height: '10px',
+            backgroundColor: piece.color,
+            borderRadius: '50%'
+          }}
+        />
+      ))}
+    </div>
+  );
+};
 
 // ✅ 10 câu hỏi theo yêu cầu
 const QUESTIONS = [
@@ -121,27 +160,30 @@ export default function CareerSurveyGame() {
   };
 
   const playSound = (type) => {
-    // Simple sound effect using Web Audio API
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
-    
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-    
-    if (type === 'open') {
-      oscillator.frequency.value = 523.25; // C5
-      gainNode.gain.value = 0.1;
-    } else if (type === 'select') {
-      oscillator.frequency.value = 659.25; // E5
-      gainNode.gain.value = 0.1;
-    } else if (type === 'complete') {
-      oscillator.frequency.value = 783.99; // G5
-      gainNode.gain.value = 0.2;
+    try {
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      if (type === 'open') {
+        oscillator.frequency.value = 523.25;
+        gainNode.gain.value = 0.1;
+      } else if (type === 'select') {
+        oscillator.frequency.value = 659.25;
+        gainNode.gain.value = 0.1;
+      } else if (type === 'complete') {
+        oscillator.frequency.value = 783.99;
+        gainNode.gain.value = 0.2;
+      }
+      
+      oscillator.start();
+      oscillator.stop(audioContext.currentTime + 0.15);
+    } catch (error) {
+      console.log('Audio not supported');
     }
-    
-    oscillator.start();
-    oscillator.stop(audioContext.currentTime + 0.15);
   };
 
   const saveSurveyMutation = useMutation({
@@ -162,7 +204,6 @@ export default function CareerSurveyGame() {
       if (soundEnabled) playSound('complete');
       
       setTimeout(() => {
-        // Calculate scores
         const groupScores = {
           self_awareness: (answers[1] + answers[2]) / 2,
           career_knowledge: (answers[3] + answers[4] + answers[5]) / 3,
@@ -293,7 +334,6 @@ export default function CareerSurveyGame() {
         
         <Breadcrumb items={breadcrumbItems} />
 
-        {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-4xl font-bold text-gray-900 mb-2">🏢 Tòa Nhà Hướng Nghiệp</h1>
@@ -309,7 +349,6 @@ export default function CareerSurveyGame() {
           </button>
         </div>
 
-        {/* Progress Bar */}
         <div className="bg-white rounded-2xl p-4 mb-8 shadow-sm">
           <div className="flex items-center gap-4">
             <div className="flex-1 h-4 bg-gray-200 rounded-full overflow-hidden">
@@ -323,18 +362,11 @@ export default function CareerSurveyGame() {
           </div>
         </div>
 
-        {/* Building */}
         <div className="relative bg-gradient-to-b from-indigo-100 to-purple-100 rounded-3xl p-8 shadow-2xl">
-          {/* Celebration Effect */}
           <AnimatePresence>
             {showCelebration && (
               <>
-                <Confetti
-                  width={window.innerWidth}
-                  height={window.innerHeight}
-                  recycle={false}
-                  numberOfPieces={500}
-                />
+                <CustomConfetti />
                 <motion.div
                   initial={{ opacity: 0, scale: 0 }}
                   animate={{ opacity: 1, scale: 1 }}
@@ -356,7 +388,6 @@ export default function CareerSurveyGame() {
             )}
           </AnimatePresence>
 
-          {/* 5 floors x 2 windows = 10 windows */}
           <div className="space-y-8">
             {[4, 3, 2, 1, 0].map((floorIndex) => (
               <div key={floorIndex} className="grid grid-cols-2 gap-8">
@@ -381,14 +412,12 @@ export default function CareerSurveyGame() {
                             : 'bg-gradient-to-br from-blue-50 to-indigo-50 border-indigo-300 hover:border-indigo-500 hover:shadow-xl cursor-pointer'
                         }`}
                       >
-                        {/* Window Frame */}
                         <div className="absolute inset-0 flex items-center justify-center">
                           <div className="text-6xl">
                             {isCompleted ? '✨' : '🪟'}
                           </div>
                         </div>
 
-                        {/* Completed Badge */}
                         {isCompleted && (
                           <motion.div
                             initial={{ scale: 0 }}
@@ -399,7 +428,6 @@ export default function CareerSurveyGame() {
                           </motion.div>
                         )}
 
-                        {/* Window Number */}
                         <div className="absolute bottom-2 left-2 bg-white/80 rounded-full w-8 h-8 flex items-center justify-center font-bold text-indigo-600">
                           {question.id}
                         </div>
@@ -411,7 +439,6 @@ export default function CareerSurveyGame() {
             ))}
           </div>
 
-          {/* Floor Labels */}
           <div className="absolute left-2 top-0 bottom-0 flex flex-col justify-around py-8">
             {[5, 4, 3, 2, 1].map((floor) => (
               <div key={floor} className="text-xs font-bold text-indigo-600 bg-white/80 rounded-full w-8 h-8 flex items-center justify-center">
@@ -421,7 +448,6 @@ export default function CareerSurveyGame() {
           </div>
         </div>
 
-        {/* Question Modal */}
         <AnimatePresence>
           {activeWindow && (
             <motion.div
