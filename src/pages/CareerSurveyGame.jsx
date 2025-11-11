@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, Trophy, ArrowRight, Volume2, VolumeX, Zap } from "lucide-react";
+import { Sparkles, Trophy, ArrowRight, Volume2, VolumeX, Lock, Lightbulb, RotateCcw, Save, Heart, ThumbsUp, Star, Zap, ChevronRight } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { useMutation } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import Breadcrumb from "@/components/Breadcrumb";
 
-// ✅ Custom Confetti with fireworks effect
+// ✅ Enhanced Confetti
 const CustomConfetti = () => {
   const confettiPieces = Array.from({ length: 100 }, (_, i) => ({
     id: i,
@@ -23,24 +23,14 @@ const CustomConfetti = () => {
       {confettiPieces.map((piece) => (
         <motion.div
           key={piece.id}
-          initial={{ 
-            y: -20, 
-            x: `${piece.left}vw`, 
-            opacity: 1, 
-            rotate: 0,
-            scale: 1
-          }}
+          initial={{ y: -20, x: `${piece.left}vw`, opacity: 1, rotate: 0, scale: 1 }}
           animate={{ 
             y: '120vh', 
             rotate: [0, 180, 360, 540],
             opacity: [1, 1, 0.5, 0],
             scale: [1, 1.2, 0.8, 0.5]
           }}
-          transition={{
-            duration: piece.duration,
-            delay: piece.delay,
-            ease: "easeIn"
-          }}
+          transition={{ duration: piece.duration, delay: piece.delay, ease: "easeIn" }}
           className="absolute rounded-full"
           style={{ 
             backgroundColor: piece.color,
@@ -54,77 +44,87 @@ const CustomConfetti = () => {
   );
 };
 
-// ✅ 10 câu hỏi
+// ✅ 10 câu hỏi với hints
 const QUESTIONS = [
   {
     id: 1,
     text: "Tôi hiểu rõ điểm mạnh, điểm yếu và sở thích cá nhân của mình.",
     character: "👨‍🏫",
     characterName: "Thầy Hướng Nghiệp",
-    group: "self_awareness"
+    group: "self_awareness",
+    hint: "Hãy nghĩ về những việc bạn làm tốt nhất và những gì bạn thích làm trong thời gian rảnh."
   },
   {
     id: 2,
     text: "Tôi biết rõ những hoạt động học tập hoặc công việc khiến tôi cảm thấy hứng thú.",
     character: "🎨",
     characterName: "Cô Nghệ Thuật",
-    group: "self_awareness"
+    group: "self_awareness",
+    hint: "Môn học nào khiến bạn cảm thấy hào hứng? Hoạt động ngoại khóa nào bạn mong chờ?"
   },
   {
     id: 3,
     text: "Tôi có thể mô tả loại môi trường học tập/làm việc mà mình mong muốn trong tương lai.",
     character: "👩‍💼",
     characterName: "Chị Tư Vấn",
-    group: "career_knowledge"
+    group: "career_knowledge",
+    hint: "Bạn thích làm việc một mình hay theo nhóm? Trong văn phòng hay ngoài trời?"
   },
   {
     id: 4,
     text: "Tôi hiểu các nhóm ngành/nghề khác nhau và yêu cầu học tập của chúng.",
     character: "👨‍🔬",
     characterName: "Anh Khoa Học",
-    group: "career_knowledge"
+    group: "career_knowledge",
+    hint: "Bạn có biết ngành Y cần học gì? Ngành IT cần kỹ năng gì không?"
   },
   {
     id: 5,
     text: "Tôi biết tổ hợp môn học nào phù hợp với định hướng nghề nghiệp của bản thân.",
     character: "👩‍🎓",
     characterName: "Cô Giáo Chủ Nhiệm",
-    group: "career_knowledge"
+    group: "career_knowledge",
+    hint: "Tổ hợp A00, B00, C00... bạn đã tìm hiểu chưa?"
   },
   {
     id: 6,
     text: "Tôi cảm thấy tự tin khi ra quyết định về học tập và nghề nghiệp cho mình.",
     character: "💪",
     characterName: "Anh Tự Tin",
-    group: "confidence"
+    group: "confidence",
+    hint: "Khi phải chọn hướng đi, bạn cảm thấy chắc chắn hay còn phân vân?"
   },
   {
     id: 7,
     text: "Tôi biết cách sử dụng kết quả trắc nghiệm Holland (RIASEC) để chọn hướng học phù hợp.",
     character: "📊",
     characterName: "Chị Phân Tích",
-    group: "confidence"
+    group: "confidence",
+    hint: "RIASEC giúp xác định nhóm nghề phù hợp với tính cách bạn."
   },
   {
     id: 8,
     text: "Sau khi sử dụng nền tảng 'Cửa Sổ Nghề Nghiệp', tôi hiểu rõ hơn về nhóm nghề phù hợp với mình.",
     character: "🚀",
     characterName: "Anh Công Nghệ",
-    group: "action_plan"
+    group: "action_plan",
+    hint: "Nền tảng đã giúp bạn khám phá điều gì mới về bản thân?"
   },
   {
     id: 9,
     text: "Tôi có kế hoạch cụ thể cho việc học và phát triển bản thân trong 6–12 tháng tới.",
     character: "📅",
     characterName: "Chị Kế Hoạch",
-    group: "action_plan"
+    group: "action_plan",
+    hint: "Bạn có mục tiêu rõ ràng cho năm học tới không?"
   },
   {
     id: 10,
     text: "Tôi cảm thấy hứng thú và sẵn sàng chia sẻ kết quả hướng nghiệp với bạn bè hoặc giáo viên.",
     character: "🌟",
     characterName: "Anh Chia Sẻ",
-    group: "motivation"
+    group: "motivation",
+    hint: "Chia sẻ giúp bạn nhận được góp ý và động viên từ mọi người."
   }
 ];
 
@@ -132,14 +132,15 @@ export default function CareerSurveyGame() {
   const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState(null);
   const [answers, setAnswers] = useState({});
-  const [activeWindow, setActiveWindow] = useState(null);
-  const [completedWindows, setCompletedWindows] = useState([]);
+  const [currentQuestion, setCurrentQuestion] = useState(1);
   const [showCelebration, setShowCelebration] = useState(false);
   const [startTime, setStartTime] = useState(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [testType, setTestType] = useState('pre');
   const [showIntro, setShowIntro] = useState(true);
-  const [openingWindow, setOpeningWindow] = useState(null);
+  const [showHint, setShowHint] = useState(false);
+  const [reactions, setReactions] = useState({});
+  const [savedProgress, setSavedProgress] = useState(null);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -152,24 +153,82 @@ export default function CareerSurveyGame() {
     };
     fetchUser();
     setStartTime(Date.now());
-  }, []);
-
-  const handleWindowClick = (questionId) => {
-    if (completedWindows.includes(questionId)) return;
-    setOpeningWindow(questionId);
-    if (soundEnabled) playSound('open');
     
-    setTimeout(() => {
-      setActiveWindow(questionId);
-      setOpeningWindow(null);
-    }, 600);
-  };
+    // Load saved progress
+    const saved = localStorage.getItem('survey_progress');
+    if (saved) {
+      const data = JSON.parse(saved);
+      setSavedProgress(data);
+    }
+  }, []);
 
   const handleAnswer = (questionId, value) => {
     setAnswers(prev => ({ ...prev, [questionId]: value }));
-    setCompletedWindows(prev => [...prev, questionId]);
-    setActiveWindow(null);
+    
+    // Emoji reaction based on answer
+    const reactionEmojis = {
+      1: "😟",
+      2: "😐", 
+      3: "🙂",
+      4: "😊",
+      5: "🤩"
+    };
+    setReactions(prev => ({ ...prev, [questionId]: reactionEmojis[value] }));
+    
     if (soundEnabled) playSound('select');
+    
+    // Auto-save progress
+    saveProgress(questionId, value);
+    
+    // Move to next question after animation
+    setTimeout(() => {
+      if (questionId < 10) {
+        setCurrentQuestion(questionId + 1);
+      } else {
+        // All done
+        setShowCelebration(true);
+        if (soundEnabled) {
+          playSound('complete');
+          setTimeout(() => playSound('complete'), 200);
+          setTimeout(() => playSound('complete'), 400);
+        }
+        
+        setTimeout(() => {
+          calculateAndSave();
+        }, 4000);
+      }
+    }, 800);
+  };
+
+  const handleUndo = () => {
+    if (currentQuestion > 1) {
+      const prevQuestion = currentQuestion - 1;
+      setCurrentQuestion(prevQuestion);
+      const newAnswers = { ...answers };
+      delete newAnswers[currentQuestion];
+      setAnswers(newAnswers);
+      if (soundEnabled) playSound('undo');
+    }
+  };
+
+  const saveProgress = (questionId, value) => {
+    const progress = {
+      answers: { ...answers, [questionId]: value },
+      currentQuestion: questionId + 1,
+      testType,
+      timestamp: Date.now()
+    };
+    localStorage.setItem('survey_progress', JSON.stringify(progress));
+  };
+
+  const loadSavedProgress = () => {
+    if (savedProgress) {
+      setAnswers(savedProgress.answers);
+      setCurrentQuestion(savedProgress.currentQuestion);
+      setTestType(savedProgress.testType);
+      setSavedProgress(null);
+      localStorage.removeItem('survey_progress');
+    }
   };
 
   const playSound = (type) => {
@@ -181,15 +240,15 @@ export default function CareerSurveyGame() {
       oscillator.connect(gainNode);
       gainNode.connect(audioContext.destination);
       
-      if (type === 'open') {
-        oscillator.frequency.value = 523.25;
-        gainNode.gain.value = 0.15;
-      } else if (type === 'select') {
+      if (type === 'select') {
         oscillator.frequency.value = 659.25;
         gainNode.gain.value = 0.15;
       } else if (type === 'complete') {
         oscillator.frequency.value = 783.99;
         gainNode.gain.value = 0.25;
+      } else if (type === 'undo') {
+        oscillator.frequency.value = 440;
+        gainNode.gain.value = 0.1;
       }
       
       oscillator.start();
@@ -199,65 +258,55 @@ export default function CareerSurveyGame() {
     }
   };
 
+  const calculateAndSave = () => {
+    const groupScores = {
+      self_awareness: (answers[1] + answers[2]) / 2,
+      career_knowledge: (answers[3] + answers[4] + answers[5]) / 3,
+      confidence: (answers[6] + answers[7]) / 2,
+      action_plan: (answers[8] + answers[9]) / 2,
+      motivation: answers[10]
+    };
+    
+    const overallScore = Object.values(answers).reduce((sum, val) => sum + val, 0) / 10;
+    
+    const groupNames = {
+      self_awareness: "Nhận thức bản thân",
+      career_knowledge: "Hiểu biết nghề nghiệp",
+      confidence: "Tự tin & ra quyết định",
+      action_plan: "Kế hoạch hành động",
+      motivation: "Lan tỏa & cảm hứng"
+    };
+    
+    const sortedGroups = Object.entries(groupScores).sort((a, b) => b[1] - a[1]);
+    
+    const surveyData = {
+      user_id: currentUser?.id || 'guest',
+      student_name: currentUser?.full_name || 'Học sinh',
+      answers: Object.values(answers),
+      group_scores: groupScores,
+      overall_score: parseFloat(overallScore.toFixed(2)),
+      highest_group: groupNames[sortedGroups[0][0]],
+      lowest_group: groupNames[sortedGroups[sortedGroups.length - 1][0]],
+      completed_at: new Date().toISOString(),
+      duration_seconds: Math.floor((Date.now() - startTime) / 1000),
+      test_type: testType
+    };
+    
+    saveSurveyMutation.mutate(surveyData);
+  };
+
   const saveSurveyMutation = useMutation({
     mutationFn: async (surveyData) => {
       return await base44.entities.SurveyResult.create(surveyData);
     },
     onSuccess: (result) => {
+      localStorage.removeItem('survey_progress');
       navigate(createPageUrl(`SurveyResult?id=${result.id}`));
     },
     onError: (error) => {
       alert('Lỗi lưu kết quả: ' + error.message);
     }
   });
-
-  useEffect(() => {
-    if (completedWindows.length === 10 && !showCelebration) {
-      setShowCelebration(true);
-      if (soundEnabled) {
-        playSound('complete');
-        setTimeout(() => playSound('complete'), 200);
-        setTimeout(() => playSound('complete'), 400);
-      }
-      
-      setTimeout(() => {
-        const groupScores = {
-          self_awareness: (answers[1] + answers[2]) / 2,
-          career_knowledge: (answers[3] + answers[4] + answers[5]) / 3,
-          confidence: (answers[6] + answers[7]) / 2,
-          action_plan: (answers[8] + answers[9]) / 2,
-          motivation: answers[10]
-        };
-        
-        const overallScore = Object.values(answers).reduce((sum, val) => sum + val, 0) / 10;
-        
-        const groupNames = {
-          self_awareness: "Nhận thức bản thân",
-          career_knowledge: "Hiểu biết nghề nghiệp",
-          confidence: "Tự tin & ra quyết định",
-          action_plan: "Kế hoạch hành động",
-          motivation: "Lan tỏa & cảm hứng"
-        };
-        
-        const sortedGroups = Object.entries(groupScores).sort((a, b) => b[1] - a[1]);
-        
-        const surveyData = {
-          user_id: currentUser?.id || 'guest',
-          student_name: currentUser?.full_name || 'Học sinh',
-          answers: Object.values(answers),
-          group_scores: groupScores,
-          overall_score: parseFloat(overallScore.toFixed(2)),
-          highest_group: groupNames[sortedGroups[0][0]],
-          lowest_group: groupNames[sortedGroups[sortedGroups.length - 1][0]],
-          completed_at: new Date().toISOString(),
-          duration_seconds: Math.floor((Date.now() - startTime) / 1000),
-          test_type: testType
-        };
-        
-        saveSurveyMutation.mutate(surveyData);
-      }, 4000);
-    }
-  }, [completedWindows.length]);
 
   const breadcrumbItems = [
     { label: "Game Khảo Sát Hướng Nghiệp" }
@@ -281,24 +330,58 @@ export default function CareerSurveyGame() {
             </p>
           </div>
 
+          {savedProgress && (
+            <div className="bg-yellow-50 border-2 border-yellow-300 rounded-2xl p-6 mb-6">
+              <div className="flex items-center gap-3 mb-3">
+                <Save className="w-6 h-6 text-yellow-600" />
+                <h3 className="font-bold text-yellow-900">Tiếp tục bài làm trước?</h3>
+              </div>
+              <p className="text-sm text-yellow-800 mb-4">
+                Bạn đã trả lời {Object.keys(savedProgress.answers).length}/10 câu. 
+                Tiếp tục từ câu {savedProgress.currentQuestion}?
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={loadSavedProgress}
+                  className="flex-1 bg-yellow-600 text-white py-2 rounded-xl font-medium hover:bg-yellow-700"
+                >
+                  Tiếp tục
+                </button>
+                <button
+                  onClick={() => {
+                    localStorage.removeItem('survey_progress');
+                    setSavedProgress(null);
+                  }}
+                  className="flex-1 border-2 border-yellow-600 text-yellow-600 py-2 rounded-xl font-medium hover:bg-yellow-50"
+                >
+                  Làm mới
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="bg-blue-50 rounded-2xl p-6 mb-8">
-            <h3 className="font-bold text-lg mb-4 text-gray-900">📋 Hướng dẫn:</h3>
-            <ul className="space-y-2 text-gray-700">
+            <h3 className="font-bold text-lg mb-4 text-gray-900">✨ Tính năng mới:</h3>
+            <ul className="space-y-2 text-sm text-gray-700">
               <li className="flex items-start gap-2">
-                <span className="text-blue-600">1️⃣</span>
-                <span>Click vào từng cửa sổ để gặp nhân vật</span>
+                <Lightbulb className="w-4 h-4 text-blue-600 mt-0.5" />
+                <span><strong>Gợi ý thông minh:</strong> Nhấn 💡 để xem hint</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-blue-600">2️⃣</span>
-                <span>Trả lời câu hỏi bằng cách chọn mức độ đồng ý (1-5)</span>
+                <RotateCcw className="w-4 h-4 text-blue-600 mt-0.5" />
+                <span><strong>Hoàn tác:</strong> Quay lại câu trước nếu muốn</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-blue-600">3️⃣</span>
-                <span>Hoàn thành 10 cửa sổ để xem kết quả</span>
+                <Save className="w-4 h-4 text-blue-600 mt-0.5" />
+                <span><strong>Lưu tự động:</strong> Thoát ra vẫn giữ tiến độ</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-blue-600">⏱️</span>
-                <span>Thời gian dự kiến: 5-7 phút</span>
+                <Heart className="w-4 h-4 text-blue-600 mt-0.5" />
+                <span><strong>Phản hồi ngay:</strong> Emoji theo câu trả lời</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <ChevronRight className="w-4 h-4 text-blue-600 mt-0.5" />
+                <span><strong>Làm tuần tự:</strong> Từng câu một, tập trung hơn</span>
               </li>
             </ul>
           </div>
@@ -345,7 +428,8 @@ export default function CareerSurveyGame() {
     );
   }
 
-  const allCompleted = completedWindows.length === 10;
+  const totalAnswered = Object.keys(answers).length;
+  const currentQ = QUESTIONS[currentQuestion - 1];
 
   return (
     <div className="pt-32 pb-24 min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
@@ -353,227 +437,110 @@ export default function CareerSurveyGame() {
         
         <Breadcrumb items={breadcrumbItems} />
 
+        {/* Header with controls */}
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-4xl font-bold text-gray-900 mb-2">🏢 Tòa Nhà Hướng Nghiệp</h1>
             <p className="text-gray-600">
-              Đã hoàn thành: <strong>{completedWindows.length}/10</strong> cửa sổ
+              Câu <strong>{currentQuestion}/10</strong> • Đã trả lời: <strong>{totalAnswered}</strong>
             </p>
           </div>
-          <button
-            onClick={() => setSoundEnabled(!soundEnabled)}
-            className="p-3 bg-white rounded-full shadow-md hover:shadow-lg transition-all"
-          >
-            {soundEnabled ? <Volume2 className="w-6 h-6 text-indigo-600" /> : <VolumeX className="w-6 h-6 text-gray-400" />}
-          </button>
+          <div className="flex items-center gap-3">
+            {currentQuestion > 1 && (
+              <button
+                onClick={handleUndo}
+                className="p-3 bg-white rounded-full shadow-md hover:shadow-lg transition-all flex items-center gap-2 text-sm font-medium text-gray-700"
+              >
+                <RotateCcw className="w-5 h-5 text-orange-600" />
+                <span className="hidden md:inline">Quay lại</span>
+              </button>
+            )}
+            <button
+              onClick={() => setSoundEnabled(!soundEnabled)}
+              className="p-3 bg-white rounded-full shadow-md hover:shadow-lg transition-all"
+            >
+              {soundEnabled ? <Volume2 className="w-6 h-6 text-indigo-600" /> : <VolumeX className="w-6 h-6 text-gray-400" />}
+            </button>
+          </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-4 mb-8 shadow-sm">
-          <div className="flex items-center gap-4">
-            <div className="flex-1 h-4 bg-gray-200 rounded-full overflow-hidden">
+        {/* Enhanced Progress Bar with mini previews */}
+        <div className="bg-white rounded-2xl p-6 mb-8 shadow-lg">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="flex-1 h-3 bg-gray-200 rounded-full overflow-hidden">
               <motion.div
                 initial={{ width: 0 }}
-                animate={{ width: `${(completedWindows.length / 10) * 100}%` }}
-                className="h-full bg-gradient-to-r from-indigo-600 to-purple-600"
+                animate={{ width: `${(totalAnswered / 10) * 100}%` }}
+                className="h-full bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600"
               />
             </div>
-            <span className="font-bold text-indigo-600">{Math.round((completedWindows.length / 10) * 100)}%</span>
+            <span className="font-bold text-indigo-600 text-lg">{Math.round((totalAnswered / 10) * 100)}%</span>
           </div>
-        </div>
-
-        {/* ✅ Building with glowing effect when completed */}
-        <div className={`relative rounded-3xl p-8 shadow-2xl transition-all duration-1000 ${
-          allCompleted 
-            ? 'bg-gradient-to-b from-yellow-100 via-orange-100 to-pink-100 shadow-[0_0_60px_rgba(251,191,36,0.6)]' 
-            : 'bg-gradient-to-b from-indigo-100 to-purple-100'
-        }`}>
-          <AnimatePresence>
-            {showCelebration && (
-              <>
-                <CustomConfetti />
-                <motion.div
-                  initial={{ opacity: 0, scale: 0 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="absolute inset-0 flex items-center justify-center z-50 bg-black/50 backdrop-blur-sm rounded-3xl"
-                >
-                  <div className="bg-white rounded-3xl p-12 text-center shadow-2xl max-w-md">
-                    <motion.div
-                      animate={{ 
-                        rotate: [0, 15, -15, 15, 0],
-                        scale: [1, 1.1, 1, 1.1, 1]
-                      }}
-                      transition={{ 
-                        duration: 0.8,
-                        repeat: 3
-                      }}
-                    >
-                      <Trophy className="w-24 h-24 text-yellow-500 mx-auto mb-4" />
-                    </motion.div>
-                    <h2 className="text-4xl font-bold text-gray-900 mb-4">
-                      🎉 Xuất sắc!
-                    </h2>
-                    <p className="text-xl text-gray-600 mb-2">
-                      Bạn đã hoàn thành khảo sát!
-                    </p>
-                    <p className="text-gray-500 text-sm">Đang tính toán kết quả của bạn...</p>
-                    <div className="mt-6 flex justify-center gap-2">
-                      <motion.div
-                        animate={{ scale: [1, 1.2, 1] }}
-                        transition={{ duration: 0.6, repeat: Infinity }}
-                        className="w-3 h-3 bg-indigo-600 rounded-full"
-                      />
-                      <motion.div
-                        animate={{ scale: [1, 1.2, 1] }}
-                        transition={{ duration: 0.6, repeat: Infinity, delay: 0.2 }}
-                        className="w-3 h-3 bg-purple-600 rounded-full"
-                      />
-                      <motion.div
-                        animate={{ scale: [1, 1.2, 1] }}
-                        transition={{ duration: 0.6, repeat: Infinity, delay: 0.4 }}
-                        className="w-3 h-3 bg-pink-600 rounded-full"
-                      />
-                    </div>
-                  </div>
-                </motion.div>
-              </>
-            )}
-          </AnimatePresence>
-
-          <div className="space-y-6">
-            {[4, 3, 2, 1, 0].map((floorIndex) => (
-              <div key={floorIndex} className="grid grid-cols-2 gap-6">
-                {[0, 1].map((windowIndex) => {
-                  const questionIndex = floorIndex * 2 + windowIndex;
-                  const question = QUESTIONS[questionIndex];
-                  const isCompleted = completedWindows.includes(question.id);
-                  const isOpening = openingWindow === question.id;
-
-                  return (
-                    <motion.div
-                      key={question.id}
-                      whileHover={!isCompleted ? { scale: 1.03, y: -5 } : {}}
-                      className="relative"
-                    >
-                      <button
-                        onClick={() => handleWindowClick(question.id)}
-                        disabled={isCompleted}
-                        className={`w-full aspect-square rounded-2xl border-4 transition-all duration-500 relative overflow-hidden ${
-                          isCompleted
-                            ? 'bg-gradient-to-br from-yellow-300 via-orange-300 to-pink-300 border-yellow-500 shadow-lg shadow-yellow-400/50 animate-pulse'
-                            : isOpening
-                            ? 'bg-gradient-to-br from-yellow-100 to-orange-100 border-yellow-400 shadow-xl'
-                            : 'bg-gradient-to-br from-blue-100 to-indigo-100 border-indigo-300 hover:border-indigo-500 hover:shadow-xl cursor-pointer'
-                        }`}
-                      >
-                        {/* ✅ Window opening animation */}
-                        <AnimatePresence>
-                          {isOpening && (
-                            <>
-                              <motion.div
-                                initial={{ scaleX: 0 }}
-                                animate={{ scaleX: 1 }}
-                                exit={{ scaleX: 0 }}
-                                transition={{ duration: 0.3 }}
-                                className="absolute inset-0 bg-yellow-200 origin-left"
-                              />
-                              <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: [0, 1, 0] }}
-                                transition={{ duration: 0.6, times: [0, 0.5, 1] }}
-                                className="absolute inset-0 bg-white"
-                              />
-                            </>
-                          )}
-                        </AnimatePresence>
-
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <motion.div 
-                            className="text-6xl"
-                            animate={isCompleted ? {
-                              scale: [1, 1.2, 1],
-                              rotate: [0, 10, -10, 0]
-                            } : {}}
-                            transition={{ duration: 0.5 }}
-                          >
-                            {isCompleted ? '✨' : isOpening ? '💫' : '🪟'}
-                          </motion.div>
-                        </div>
-
-                        {/* ✅ Glowing effect for completed */}
-                        {isCompleted && (
-                          <>
-                            <motion.div
-                              initial={{ scale: 0 }}
-                              animate={{ scale: 1 }}
-                              className="absolute top-2 right-2 bg-green-500 text-white rounded-full p-2 shadow-lg"
-                            >
-                              <Trophy className="w-5 h-5" />
-                            </motion.div>
-                            <motion.div
-                              animate={{ 
-                                opacity: [0.3, 0.7, 0.3],
-                                scale: [1, 1.05, 1]
-                              }}
-                              transition={{ 
-                                duration: 2,
-                                repeat: Infinity
-                              }}
-                              className="absolute inset-0 bg-gradient-to-br from-yellow-400/30 to-orange-400/30 rounded-2xl"
-                            />
-                          </>
-                        )}
-
-                        {/* Lightning bolt effect when opening */}
-                        {isOpening && (
-                          <motion.div
-                            initial={{ opacity: 0, scale: 0 }}
-                            animate={{ opacity: [0, 1, 0], scale: [0, 1.5, 0] }}
-                            transition={{ duration: 0.4 }}
-                            className="absolute inset-0 flex items-center justify-center"
-                          >
-                            <Zap className="w-20 h-20 text-yellow-400" />
-                          </motion.div>
-                        )}
-
-                        <div className="absolute bottom-2 left-2 bg-white/90 rounded-full w-8 h-8 flex items-center justify-center font-bold text-indigo-600 shadow-md">
-                          {question.id}
-                        </div>
-                      </button>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            ))}
-          </div>
-
-          <div className="absolute left-2 top-0 bottom-0 flex flex-col justify-around py-8">
-            {[5, 4, 3, 2, 1].map((floor) => (
-              <div key={floor} className="text-xs font-bold text-indigo-600 bg-white/90 rounded-full w-8 h-8 flex items-center justify-center shadow-md">
-                T{floor}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Question Modal */}
-        <AnimatePresence>
-          {activeWindow && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4"
-              onClick={() => setActiveWindow(null)}
-            >
-              <motion.div
-                initial={{ scale: 0.8, y: 50, rotateX: -15 }}
-                animate={{ scale: 1, y: 0, rotateX: 0 }}
-                exit={{ scale: 0.8, y: 50, rotateX: 15 }}
-                transition={{ type: "spring", duration: 0.5 }}
-                onClick={(e) => e.stopPropagation()}
-                className="bg-white rounded-3xl p-8 max-w-2xl w-full shadow-2xl"
+          
+          {/* Mini question tracker */}
+          <div className="flex gap-2 justify-center flex-wrap">
+            {QUESTIONS.map((q) => (
+              <div
+                key={q.id}
+                className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                  answers[q.id] ? 'bg-green-500 text-white scale-110' :
+                  q.id === currentQuestion ? 'bg-indigo-600 text-white animate-pulse' :
+                  q.id < currentQuestion ? 'bg-gray-300 text-gray-600' :
+                  'bg-gray-100 text-gray-400 opacity-50'
+                }`}
               >
+                {answers[q.id] ? '✓' : q.id}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Main Question Card - Centered */}
+        <div className="max-w-4xl mx-auto">
+          <AnimatePresence mode="wait">
+            {showCelebration ? (
+              <motion.div
+                key="celebration"
+                initial={{ opacity: 0, scale: 0 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 flex items-center justify-center z-50 bg-black/50 backdrop-blur-sm"
+              >
+                <CustomConfetti />
+                <div className="bg-white rounded-3xl p-12 text-center shadow-2xl max-w-md">
+                  <motion.div
+                    animate={{ 
+                      rotate: [0, 15, -15, 15, 0],
+                      scale: [1, 1.1, 1, 1.1, 1]
+                    }}
+                    transition={{ duration: 0.8, repeat: 3 }}
+                  >
+                    <Trophy className="w-24 h-24 text-yellow-500 mx-auto mb-4" />
+                  </motion.div>
+                  <h2 className="text-4xl font-bold text-gray-900 mb-4">
+                    🎉 Xuất sắc!
+                  </h2>
+                  <p className="text-xl text-gray-600 mb-2">
+                    Bạn đã hoàn thành khảo sát!
+                  </p>
+                  <p className="text-gray-500 text-sm">Đang tính toán kết quả của bạn...</p>
+                  <div className="mt-6 flex justify-center gap-2">
+                    <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 0.6, repeat: Infinity }} className="w-3 h-3 bg-indigo-600 rounded-full" />
+                    <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0.2 }} className="w-3 h-3 bg-purple-600 rounded-full" />
+                    <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0.4 }} className="w-3 h-3 bg-pink-600 rounded-full" />
+                  </div>
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div
+                key={currentQuestion}
+                initial={{ opacity: 0, x: 100, rotateY: -15 }}
+                animate={{ opacity: 1, x: 0, rotateY: 0 }}
+                exit={{ opacity: 0, x: -100, rotateY: 15 }}
+                transition={{ type: "spring", duration: 0.6 }}
+                className="bg-white rounded-3xl p-8 shadow-2xl border-4 border-indigo-100"
+              >
+                {/* Character */}
                 <motion.div 
                   className="text-center mb-6"
                   initial={{ opacity: 0, y: -20 }}
@@ -581,23 +548,53 @@ export default function CareerSurveyGame() {
                   transition={{ delay: 0.2 }}
                 >
                   <motion.div 
-                    className="text-8xl mb-4"
+                    className="text-9xl mb-4"
                     animate={{ 
                       scale: [1, 1.1, 1],
                       rotate: [0, 5, -5, 0]
                     }}
-                    transition={{ duration: 0.5 }}
+                    transition={{ duration: 2, repeat: Infinity }}
                   >
-                    {QUESTIONS[activeWindow - 1].character}
+                    {currentQ.character}
                   </motion.div>
                   <h3 className="text-2xl font-bold text-gray-900 mb-2">
-                    {QUESTIONS[activeWindow - 1].characterName}
+                    {currentQ.characterName}
                   </h3>
-                  <p className="text-lg text-gray-700 leading-relaxed">
-                    {QUESTIONS[activeWindow - 1].text}
+                  <div className="inline-block bg-indigo-100 text-indigo-700 px-4 py-1 rounded-full text-sm font-medium mb-4">
+                    Câu {currentQuestion}/10
+                  </div>
+                  <p className="text-lg text-gray-700 leading-relaxed max-w-2xl mx-auto">
+                    {currentQ.text}
                   </p>
                 </motion.div>
 
+                {/* Hint button */}
+                <div className="flex justify-center mb-6">
+                  <button
+                    onClick={() => setShowHint(!showHint)}
+                    className="flex items-center gap-2 px-4 py-2 bg-yellow-50 hover:bg-yellow-100 text-yellow-700 rounded-xl transition-all text-sm font-medium"
+                  >
+                    <Lightbulb className="w-4 h-4" />
+                    {showHint ? 'Ẩn gợi ý' : 'Hiện gợi ý'}
+                  </button>
+                </div>
+
+                <AnimatePresence>
+                  {showHint && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-4 mb-6"
+                    >
+                      <p className="text-sm text-yellow-800">
+                        💡 <strong>Gợi ý:</strong> {currentQ.hint}
+                      </p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Answer buttons */}
                 <motion.div 
                   className="space-y-4"
                   initial={{ opacity: 0, y: 20 }}
@@ -611,10 +608,16 @@ export default function CareerSurveyGame() {
                     {[1, 2, 3, 4, 5].map((value) => (
                       <motion.button
                         key={value}
-                        onClick={() => handleAnswer(activeWindow, value)}
+                        onClick={() => handleAnswer(currentQuestion, value)}
                         whileHover={{ scale: 1.15, rotate: 5 }}
                         whileTap={{ scale: 0.95 }}
-                        className="aspect-square rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-bold text-3xl hover:from-purple-600 hover:to-indigo-500 transition-all shadow-lg hover:shadow-2xl"
+                        className={`aspect-square rounded-2xl font-bold text-3xl transition-all shadow-lg hover:shadow-2xl ${
+                          value === 1 ? 'bg-gradient-to-br from-red-400 to-red-600 text-white' :
+                          value === 2 ? 'bg-gradient-to-br from-orange-400 to-orange-600 text-white' :
+                          value === 3 ? 'bg-gradient-to-br from-yellow-400 to-yellow-600 text-white' :
+                          value === 4 ? 'bg-gradient-to-br from-green-400 to-green-600 text-white' :
+                          'bg-gradient-to-br from-indigo-500 to-purple-600 text-white'
+                        }`}
                       >
                         {value}
                       </motion.button>
@@ -626,10 +629,38 @@ export default function CareerSurveyGame() {
                     <span>Rất đồng ý</span>
                   </div>
                 </motion.div>
+
+                {/* Real-time reaction */}
+                {reactions[currentQuestion - 1] && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="text-center mt-6 text-6xl"
+                  >
+                    {reactions[currentQuestion - 1]}
+                  </motion.div>
+                )}
               </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Locked windows preview */}
+        <div className="mt-12 max-w-4xl mx-auto">
+          <h3 className="text-center text-sm font-medium text-gray-500 mb-4">Các câu tiếp theo:</h3>
+          <div className="flex gap-3 overflow-x-auto pb-4 justify-center">
+            {QUESTIONS.filter(q => q.id > currentQuestion && q.id <= currentQuestion + 3).map((q) => (
+              <div
+                key={q.id}
+                className="flex-shrink-0 w-24 h-24 bg-gray-100 rounded-xl border-2 border-gray-300 flex flex-col items-center justify-center opacity-50"
+              >
+                <Lock className="w-6 h-6 text-gray-400 mb-1" />
+                <span className="text-xs text-gray-500">Câu {q.id}</span>
+                <span className="text-2xl">{q.character}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
