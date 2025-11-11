@@ -168,7 +168,9 @@ export default function CareerSurveyGame() {
   }, []);
 
   const handleAnswer = (questionId, value) => {
-    setAnswers(prev => ({ ...prev, [questionId]: value }));
+    // ✅ CRITICAL FIX: Update state with new answer immediately
+    const updatedAnswers = { ...answers, [questionId]: value };
+    setAnswers(updatedAnswers);
     
     // Emoji reaction based on answer
     const reactionEmojis = {
@@ -182,16 +184,16 @@ export default function CareerSurveyGame() {
     
     if (soundEnabled) playSound('select');
     
-    // Auto-save progress
-    saveProgress(questionId, value);
+    // Auto-save progress with updated answers
+    saveProgress(questionId, value, updatedAnswers);
     
     // Move to next question after animation
     setTimeout(() => {
       if (questionId < 10) {
         setCurrentQuestion(questionId + 1);
-        setShowHint(false); // Reset hint for next question
+        setShowHint(false);
       } else {
-        // All done
+        // ✅ CRITICAL FIX: All done - pass updated answers directly
         setShowCelebration(true);
         if (soundEnabled) {
           playSound('complete');
@@ -199,8 +201,9 @@ export default function CareerSurveyGame() {
           setTimeout(() => playSound('complete'), 400);
         }
         
+        // ✅ Pass updatedAnswers directly to calculateAndSave
         setTimeout(() => {
-          calculateAndSave();
+          calculateAndSave(updatedAnswers);
         }, 4000);
       }
     }, 800);
@@ -218,10 +221,10 @@ export default function CareerSurveyGame() {
     }
   };
 
-  const saveProgress = (questionId, value) => {
+  const saveProgress = (questionId, value, currentAnswers) => {
     try {
       const progress = {
-        answers: { ...answers, [questionId]: value },
+        answers: currentAnswers || { ...answers, [questionId]: value },
         currentQuestion: questionId < 10 ? questionId + 1 : questionId,
         testType,
         timestamp: Date.now()
@@ -269,28 +272,34 @@ export default function CareerSurveyGame() {
     }
   };
 
-  const calculateAndSave = () => {
+  // ✅ CRITICAL FIX: Accept answers as parameter to avoid stale state
+  const calculateAndSave = (finalAnswers = answers) => {
     try {
-      // ✅ FIX: Ensure all answers exist and are valid numbers
+      console.log('🔍 Starting calculation with answers:', finalAnswers);
+      
+      // ✅ Validate all 10 answers exist
       const validAnswers = {};
       for (let i = 1; i <= 10; i++) {
-        if (answers[i] && typeof answers[i] === 'number' && !isNaN(answers[i])) {
-          validAnswers[i] = answers[i];
+        const answer = finalAnswers[i];
+        if (answer && typeof answer === 'number' && !isNaN(answer) && answer >= 1 && answer <= 5) {
+          validAnswers[i] = answer;
         } else {
-          console.warn(`Missing or invalid answer for question ${i}`);
-          // Don't proceed if any answer is missing
+          console.error(`❌ Invalid answer for question ${i}:`, answer);
           alert(`Vui lòng trả lời đầy đủ tất cả 10 câu hỏi. Câu ${i} chưa có câu trả lời hợp lệ.`);
+          setShowCelebration(false); // Hide celebration on error
           return;
         }
       }
 
-      // Calculate group scores with null safety
+      console.log('✅ All answers validated:', validAnswers);
+
+      // Calculate group scores
       const groupScores = {
-        self_awareness: ((validAnswers[1] || 0) + (validAnswers[2] || 0)) / 2,
-        career_knowledge: ((validAnswers[3] || 0) + (validAnswers[4] || 0) + (validAnswers[5] || 0)) / 3,
-        confidence: ((validAnswers[6] || 0) + (validAnswers[7] || 0)) / 2,
-        action_plan: ((validAnswers[8] || 0) + (validAnswers[9] || 0)) / 2,
-        motivation: validAnswers[10] || 0
+        self_awareness: (validAnswers[1] + validAnswers[2]) / 2,
+        career_knowledge: (validAnswers[3] + validAnswers[4] + validAnswers[5]) / 3,
+        confidence: (validAnswers[6] + validAnswers[7]) / 2,
+        action_plan: (validAnswers[8] + validAnswers[9]) / 2,
+        motivation: validAnswers[10]
       };
       
       // Calculate overall score
@@ -298,10 +307,13 @@ export default function CareerSurveyGame() {
       const sum = answerValues.reduce((acc, val) => acc + val, 0);
       const overallScore = sum / 10;
       
-      // ✅ FIX: Add validation
+      console.log('📊 Calculated scores:', { groupScores, overallScore });
+      
+      // ✅ Validate overallScore
       if (isNaN(overallScore) || overallScore === null || overallScore === undefined) {
-        console.error('Invalid overall score:', overallScore);
+        console.error('❌ Invalid overall score:', overallScore);
         alert('Lỗi tính điểm. Vui lòng thử lại.');
+        setShowCelebration(false);
         return;
       }
       
@@ -328,11 +340,12 @@ export default function CareerSurveyGame() {
         test_type: testType
       };
       
-      console.log('Saving survey data:', surveyData);
+      console.log('💾 Saving survey data:', surveyData);
       saveSurveyMutation.mutate(surveyData);
     } catch (error) {
-      console.error('Error calculating results:', error);
+      console.error('❌ Error calculating results:', error);
       alert('Có lỗi xảy ra khi tính kết quả. Vui lòng thử lại.');
+      setShowCelebration(false);
     }
   };
 
@@ -341,12 +354,14 @@ export default function CareerSurveyGame() {
       return await base44.entities.SurveyResult.create(surveyData);
     },
     onSuccess: (result) => {
+      console.log('✅ Survey saved successfully:', result);
       localStorage.removeItem('survey_progress');
       navigate(createPageUrl(`SurveyResult?id=${result.id}`));
     },
     onError: (error) => {
-      console.error('Save error:', error);
+      console.error('❌ Save error:', error);
       alert('Lỗi lưu kết quả: ' + error.message);
+      setShowCelebration(false);
     }
   });
 
@@ -690,13 +705,13 @@ export default function CareerSurveyGame() {
                 </motion.div>
 
                 {/* Real-time reaction */}
-                {reactions[currentQuestion - 1] && (
+                {reactions[currentQuestion] && (
                   <motion.div
                     initial={{ opacity: 0, scale: 0 }}
                     animate={{ opacity: 1, scale: 1 }}
                     className="text-center mt-6 text-6xl"
                   >
-                    {reactions[currentQuestion - 1]}
+                    {reactions[currentQuestion]}
                   </motion.div>
                 )}
               </motion.div>
