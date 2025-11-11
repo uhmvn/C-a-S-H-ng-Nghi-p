@@ -1,20 +1,21 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, Trophy, ArrowRight, Home, Volume2, VolumeX } from "lucide-react";
+import { Sparkles, Trophy, ArrowRight, Volume2, VolumeX, Zap } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { useMutation } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import Breadcrumb from "@/components/Breadcrumb";
 
-// ✅ Custom Confetti Component (CSS-based)
+// ✅ Custom Confetti with fireworks effect
 const CustomConfetti = () => {
-  const confettiPieces = Array.from({ length: 50 }, (_, i) => ({
+  const confettiPieces = Array.from({ length: 100 }, (_, i) => ({
     id: i,
     left: Math.random() * 100,
     delay: Math.random() * 0.5,
     duration: 2 + Math.random() * 2,
-    color: ['#4F46E5', '#9333EA', '#EC4899', '#F59E0B', '#10B981'][Math.floor(Math.random() * 5)]
+    color: ['#4F46E5', '#9333EA', '#EC4899', '#F59E0B', '#10B981', '#FBBF24'][Math.floor(Math.random() * 6)],
+    size: 8 + Math.random() * 8
   }));
 
   return (
@@ -22,21 +23,30 @@ const CustomConfetti = () => {
       {confettiPieces.map((piece) => (
         <motion.div
           key={piece.id}
-          initial={{ y: -20, x: `${piece.left}vw`, opacity: 1, rotate: 0 }}
+          initial={{ 
+            y: -20, 
+            x: `${piece.left}vw`, 
+            opacity: 1, 
+            rotate: 0,
+            scale: 1
+          }}
           animate={{ 
-            y: '100vh', 
-            rotate: 360,
-            opacity: 0
+            y: '120vh', 
+            rotate: [0, 180, 360, 540],
+            opacity: [1, 1, 0.5, 0],
+            scale: [1, 1.2, 0.8, 0.5]
           }}
           transition={{
             duration: piece.duration,
             delay: piece.delay,
-            ease: "linear"
+            ease: "easeIn"
           }}
-          className="absolute w-3 h-3 rounded-full"
+          className="absolute rounded-full"
           style={{ 
             backgroundColor: piece.color,
-            boxShadow: `0 0 10px ${piece.color}`
+            width: `${piece.size}px`,
+            height: `${piece.size}px`,
+            boxShadow: `0 0 20px ${piece.color}`
           }}
         />
       ))}
@@ -44,7 +54,7 @@ const CustomConfetti = () => {
   );
 };
 
-// ✅ 10 câu hỏi theo yêu cầu
+// ✅ 10 câu hỏi
 const QUESTIONS = [
   {
     id: 1,
@@ -129,6 +139,7 @@ export default function CareerSurveyGame() {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [testType, setTestType] = useState('pre');
   const [showIntro, setShowIntro] = useState(true);
+  const [openingWindow, setOpeningWindow] = useState(null);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -145,8 +156,13 @@ export default function CareerSurveyGame() {
 
   const handleWindowClick = (questionId) => {
     if (completedWindows.includes(questionId)) return;
-    setActiveWindow(questionId);
+    setOpeningWindow(questionId);
     if (soundEnabled) playSound('open');
+    
+    setTimeout(() => {
+      setActiveWindow(questionId);
+      setOpeningWindow(null);
+    }, 600);
   };
 
   const handleAnswer = (questionId, value) => {
@@ -157,7 +173,6 @@ export default function CareerSurveyGame() {
   };
 
   const playSound = (type) => {
-    // Simple sound effect using Web Audio API
     try {
       const audioContext = new (window.AudioContext || window.webkitAudioContext)();
       const oscillator = audioContext.createOscillator();
@@ -167,18 +182,18 @@ export default function CareerSurveyGame() {
       gainNode.connect(audioContext.destination);
       
       if (type === 'open') {
-        oscillator.frequency.value = 523.25; // C5
-        gainNode.gain.value = 0.1;
+        oscillator.frequency.value = 523.25;
+        gainNode.gain.value = 0.15;
       } else if (type === 'select') {
-        oscillator.frequency.value = 659.25; // E5
-        gainNode.gain.value = 0.1;
+        oscillator.frequency.value = 659.25;
+        gainNode.gain.value = 0.15;
       } else if (type === 'complete') {
-        oscillator.frequency.value = 783.99; // G5
-        gainNode.gain.value = 0.2;
+        oscillator.frequency.value = 783.99;
+        gainNode.gain.value = 0.25;
       }
       
       oscillator.start();
-      oscillator.stop(audioContext.currentTime + 0.15);
+      oscillator.stop(audioContext.currentTime + 0.2);
     } catch (error) {
       console.log('Audio not supported');
     }
@@ -199,10 +214,13 @@ export default function CareerSurveyGame() {
   useEffect(() => {
     if (completedWindows.length === 10 && !showCelebration) {
       setShowCelebration(true);
-      if (soundEnabled) playSound('complete');
+      if (soundEnabled) {
+        playSound('complete');
+        setTimeout(() => playSound('complete'), 200);
+        setTimeout(() => playSound('complete'), 400);
+      }
       
       setTimeout(() => {
-        // Calculate scores
         const groupScores = {
           self_awareness: (answers[1] + answers[2]) / 2,
           career_knowledge: (answers[3] + answers[4] + answers[5]) / 3,
@@ -237,7 +255,7 @@ export default function CareerSurveyGame() {
         };
         
         saveSurveyMutation.mutate(surveyData);
-      }, 3000);
+      }, 4000);
     }
   }, [completedWindows.length]);
 
@@ -327,13 +345,14 @@ export default function CareerSurveyGame() {
     );
   }
 
+  const allCompleted = completedWindows.length === 10;
+
   return (
     <div className="pt-32 pb-24 min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
       <div className="max-w-7xl mx-auto px-6 lg:px-8">
         
         <Breadcrumb items={breadcrumbItems} />
 
-        {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-4xl font-bold text-gray-900 mb-2">🏢 Tòa Nhà Hướng Nghiệp</h1>
@@ -349,7 +368,6 @@ export default function CareerSurveyGame() {
           </button>
         </div>
 
-        {/* Progress Bar */}
         <div className="bg-white rounded-2xl p-4 mb-8 shadow-sm">
           <div className="flex items-center gap-4">
             <div className="flex-1 h-4 bg-gray-200 rounded-full overflow-hidden">
@@ -363,9 +381,12 @@ export default function CareerSurveyGame() {
           </div>
         </div>
 
-        {/* Building */}
-        <div className="relative bg-gradient-to-b from-indigo-100 to-purple-100 rounded-3xl p-8 shadow-2xl">
-          {/* Celebration Effect */}
+        {/* ✅ Building with glowing effect when completed */}
+        <div className={`relative rounded-3xl p-8 shadow-2xl transition-all duration-1000 ${
+          allCompleted 
+            ? 'bg-gradient-to-b from-yellow-100 via-orange-100 to-pink-100 shadow-[0_0_60px_rgba(251,191,36,0.6)]' 
+            : 'bg-gradient-to-b from-indigo-100 to-purple-100'
+        }`}>
           <AnimatePresence>
             {showCelebration && (
               <>
@@ -376,66 +397,146 @@ export default function CareerSurveyGame() {
                   exit={{ opacity: 0 }}
                   className="absolute inset-0 flex items-center justify-center z-50 bg-black/50 backdrop-blur-sm rounded-3xl"
                 >
-                  <div className="bg-white rounded-3xl p-12 text-center shadow-2xl">
-                    <Trophy className="w-20 h-20 text-yellow-500 mx-auto mb-4" />
+                  <div className="bg-white rounded-3xl p-12 text-center shadow-2xl max-w-md">
+                    <motion.div
+                      animate={{ 
+                        rotate: [0, 15, -15, 15, 0],
+                        scale: [1, 1.1, 1, 1.1, 1]
+                      }}
+                      transition={{ 
+                        duration: 0.8,
+                        repeat: 3
+                      }}
+                    >
+                      <Trophy className="w-24 h-24 text-yellow-500 mx-auto mb-4" />
+                    </motion.div>
                     <h2 className="text-4xl font-bold text-gray-900 mb-4">
-                      🎉 Chúc mừng!
+                      🎉 Xuất sắc!
                     </h2>
-                    <p className="text-xl text-gray-600">
+                    <p className="text-xl text-gray-600 mb-2">
                       Bạn đã hoàn thành khảo sát!
                     </p>
-                    <p className="text-gray-500 mt-2">Đang tính kết quả...</p>
+                    <p className="text-gray-500 text-sm">Đang tính toán kết quả của bạn...</p>
+                    <div className="mt-6 flex justify-center gap-2">
+                      <motion.div
+                        animate={{ scale: [1, 1.2, 1] }}
+                        transition={{ duration: 0.6, repeat: Infinity }}
+                        className="w-3 h-3 bg-indigo-600 rounded-full"
+                      />
+                      <motion.div
+                        animate={{ scale: [1, 1.2, 1] }}
+                        transition={{ duration: 0.6, repeat: Infinity, delay: 0.2 }}
+                        className="w-3 h-3 bg-purple-600 rounded-full"
+                      />
+                      <motion.div
+                        animate={{ scale: [1, 1.2, 1] }}
+                        transition={{ duration: 0.6, repeat: Infinity, delay: 0.4 }}
+                        className="w-3 h-3 bg-pink-600 rounded-full"
+                      />
+                    </div>
                   </div>
                 </motion.div>
               </>
             )}
           </AnimatePresence>
 
-          {/* 5 floors x 2 windows = 10 windows */}
-          <div className="space-y-8">
+          <div className="space-y-6">
             {[4, 3, 2, 1, 0].map((floorIndex) => (
-              <div key={floorIndex} className="grid grid-cols-2 gap-8">
+              <div key={floorIndex} className="grid grid-cols-2 gap-6">
                 {[0, 1].map((windowIndex) => {
                   const questionIndex = floorIndex * 2 + windowIndex;
                   const question = QUESTIONS[questionIndex];
                   const isCompleted = completedWindows.includes(question.id);
-                  const isActive = activeWindow === question.id;
+                  const isOpening = openingWindow === question.id;
 
                   return (
                     <motion.div
                       key={question.id}
-                      whileHover={!isCompleted ? { scale: 1.05, y: -5 } : {}}
+                      whileHover={!isCompleted ? { scale: 1.03, y: -5 } : {}}
                       className="relative"
                     >
                       <button
                         onClick={() => handleWindowClick(question.id)}
                         disabled={isCompleted}
-                        className={`w-full aspect-square rounded-2xl border-4 transition-all relative overflow-hidden ${
+                        className={`w-full aspect-square rounded-2xl border-4 transition-all duration-500 relative overflow-hidden ${
                           isCompleted
-                            ? 'bg-gradient-to-br from-yellow-200 to-orange-200 border-yellow-400 shadow-lg shadow-yellow-300/50'
-                            : 'bg-gradient-to-br from-blue-50 to-indigo-50 border-indigo-300 hover:border-indigo-500 hover:shadow-xl cursor-pointer'
+                            ? 'bg-gradient-to-br from-yellow-300 via-orange-300 to-pink-300 border-yellow-500 shadow-lg shadow-yellow-400/50 animate-pulse'
+                            : isOpening
+                            ? 'bg-gradient-to-br from-yellow-100 to-orange-100 border-yellow-400 shadow-xl'
+                            : 'bg-gradient-to-br from-blue-100 to-indigo-100 border-indigo-300 hover:border-indigo-500 hover:shadow-xl cursor-pointer'
                         }`}
                       >
-                        {/* Window Frame */}
+                        {/* ✅ Window opening animation */}
+                        <AnimatePresence>
+                          {isOpening && (
+                            <>
+                              <motion.div
+                                initial={{ scaleX: 0 }}
+                                animate={{ scaleX: 1 }}
+                                exit={{ scaleX: 0 }}
+                                transition={{ duration: 0.3 }}
+                                className="absolute inset-0 bg-yellow-200 origin-left"
+                              />
+                              <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: [0, 1, 0] }}
+                                transition={{ duration: 0.6, times: [0, 0.5, 1] }}
+                                className="absolute inset-0 bg-white"
+                              />
+                            </>
+                          )}
+                        </AnimatePresence>
+
                         <div className="absolute inset-0 flex items-center justify-center">
-                          <div className="text-6xl">
-                            {isCompleted ? '✨' : '🪟'}
-                          </div>
+                          <motion.div 
+                            className="text-6xl"
+                            animate={isCompleted ? {
+                              scale: [1, 1.2, 1],
+                              rotate: [0, 10, -10, 0]
+                            } : {}}
+                            transition={{ duration: 0.5 }}
+                          >
+                            {isCompleted ? '✨' : isOpening ? '💫' : '🪟'}
+                          </motion.div>
                         </div>
 
-                        {/* Completed Badge */}
+                        {/* ✅ Glowing effect for completed */}
                         {isCompleted && (
+                          <>
+                            <motion.div
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              className="absolute top-2 right-2 bg-green-500 text-white rounded-full p-2 shadow-lg"
+                            >
+                              <Trophy className="w-5 h-5" />
+                            </motion.div>
+                            <motion.div
+                              animate={{ 
+                                opacity: [0.3, 0.7, 0.3],
+                                scale: [1, 1.05, 1]
+                              }}
+                              transition={{ 
+                                duration: 2,
+                                repeat: Infinity
+                              }}
+                              className="absolute inset-0 bg-gradient-to-br from-yellow-400/30 to-orange-400/30 rounded-2xl"
+                            />
+                          </>
+                        )}
+
+                        {/* Lightning bolt effect when opening */}
+                        {isOpening && (
                           <motion.div
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            className="absolute top-2 right-2 bg-green-500 text-white rounded-full p-2"
+                            initial={{ opacity: 0, scale: 0 }}
+                            animate={{ opacity: [0, 1, 0], scale: [0, 1.5, 0] }}
+                            transition={{ duration: 0.4 }}
+                            className="absolute inset-0 flex items-center justify-center"
                           >
-                            <Trophy className="w-5 h-5" />
+                            <Zap className="w-20 h-20 text-yellow-400" />
                           </motion.div>
                         )}
 
-                        {/* Window Number */}
-                        <div className="absolute bottom-2 left-2 bg-white/80 rounded-full w-8 h-8 flex items-center justify-center font-bold text-indigo-600">
+                        <div className="absolute bottom-2 left-2 bg-white/90 rounded-full w-8 h-8 flex items-center justify-center font-bold text-indigo-600 shadow-md">
                           {question.id}
                         </div>
                       </button>
@@ -446,10 +547,9 @@ export default function CareerSurveyGame() {
             ))}
           </div>
 
-          {/* Floor Labels */}
           <div className="absolute left-2 top-0 bottom-0 flex flex-col justify-around py-8">
             {[5, 4, 3, 2, 1].map((floor) => (
-              <div key={floor} className="text-xs font-bold text-indigo-600 bg-white/80 rounded-full w-8 h-8 flex items-center justify-center">
+              <div key={floor} className="text-xs font-bold text-indigo-600 bg-white/90 rounded-full w-8 h-8 flex items-center justify-center shadow-md">
                 T{floor}
               </div>
             ))}
@@ -463,46 +563,69 @@ export default function CareerSurveyGame() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+              className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4"
               onClick={() => setActiveWindow(null)}
             >
               <motion.div
-                initial={{ scale: 0.8, y: 50 }}
-                animate={{ scale: 1, y: 0 }}
-                exit={{ scale: 0.8, y: 50 }}
+                initial={{ scale: 0.8, y: 50, rotateX: -15 }}
+                animate={{ scale: 1, y: 0, rotateX: 0 }}
+                exit={{ scale: 0.8, y: 50, rotateX: 15 }}
+                transition={{ type: "spring", duration: 0.5 }}
                 onClick={(e) => e.stopPropagation()}
                 className="bg-white rounded-3xl p-8 max-w-2xl w-full shadow-2xl"
               >
-                <div className="text-center mb-6">
-                  <div className="text-8xl mb-4">{QUESTIONS[activeWindow - 1].character}</div>
+                <motion.div 
+                  className="text-center mb-6"
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                >
+                  <motion.div 
+                    className="text-8xl mb-4"
+                    animate={{ 
+                      scale: [1, 1.1, 1],
+                      rotate: [0, 5, -5, 0]
+                    }}
+                    transition={{ duration: 0.5 }}
+                  >
+                    {QUESTIONS[activeWindow - 1].character}
+                  </motion.div>
                   <h3 className="text-2xl font-bold text-gray-900 mb-2">
                     {QUESTIONS[activeWindow - 1].characterName}
                   </h3>
                   <p className="text-lg text-gray-700 leading-relaxed">
                     {QUESTIONS[activeWindow - 1].text}
                   </p>
-                </div>
+                </motion.div>
 
-                <div className="space-y-4">
-                  <p className="text-center text-sm text-gray-600 mb-4">
+                <motion.div 
+                  className="space-y-4"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                >
+                  <p className="text-center text-sm text-gray-600 mb-4 font-medium">
                     Chọn mức độ đồng ý của bạn:
                   </p>
                   <div className="grid grid-cols-5 gap-3">
                     {[1, 2, 3, 4, 5].map((value) => (
-                      <button
+                      <motion.button
                         key={value}
                         onClick={() => handleAnswer(activeWindow, value)}
-                        className="aspect-square rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-bold text-2xl hover:from-purple-600 hover:to-indigo-500 transition-all hover:scale-110 shadow-lg"
+                        whileHover={{ scale: 1.15, rotate: 5 }}
+                        whileTap={{ scale: 0.95 }}
+                        className="aspect-square rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-bold text-3xl hover:from-purple-600 hover:to-indigo-500 transition-all shadow-lg hover:shadow-2xl"
                       >
                         {value}
-                      </button>
+                      </motion.button>
                     ))}
                   </div>
-                  <div className="flex justify-between text-xs text-gray-500 px-2">
+                  <div className="flex justify-between text-xs text-gray-500 px-2 pt-2">
                     <span>Rất không đồng ý</span>
+                    <span className="font-medium">Trung lập</span>
                     <span>Rất đồng ý</span>
                   </div>
-                </div>
+                </motion.div>
               </motion.div>
             </motion.div>
           )}

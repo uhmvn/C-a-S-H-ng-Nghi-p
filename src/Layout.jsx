@@ -2,7 +2,7 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
-import { Compass, Phone, Mail, Linkedin, Facebook, MapPin, X, Menu, Users, LogOut, Settings, LayoutDashboard, User as UserIcon } from "lucide-react";
+import { Compass, Phone, Mail, Linkedin, Facebook, MapPin, X, Menu, Users, LogOut, Settings, LayoutDashboard, User as UserIcon, ChevronDown } from "lucide-react";
 import ChatBot from "@/components/ChatBot";
 import BookingModal from "@/components/BookingModal";
 import ReviewWidget from "@/components/ReviewWidget";
@@ -19,32 +19,31 @@ export default function Layout({ children, currentPageName }) {
   const [initialService, setInitialService] = React.useState(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const [userRole, setUserRole] = React.useState(null);
-  const [currentUser, setCurrentUser] = React.useState(null); // Added state for current user
+  const [currentUser, setCurrentUser] = React.useState(null);
   const [showUserMenu, setShowUserMenu] = React.useState(false);
+  const [showServicesDropdown, setShowServicesDropdown] = React.useState(false); // New state for services dropdown
   const userMenuRef = React.useRef(null);
+  const servicesDropdownRef = React.useRef(null); // New ref for services dropdown
   const [authError, setAuthError] = React.useState(false);
-  const isAuthChecking = React.useRef(true); // Changed to useRef to prevent re-renders on every update
+  const isAuthChecking = React.useRef(true);
   const [userPermissions, setUserPermissions] = useState([]);
 
   React.useEffect(() => {
     const checkUserRole = async () => {
       try {
         isAuthChecking.current = true;
-        setAuthError(false); // Reset error state
+        setAuthError(false);
         
         const user = await base44.auth.me();
         console.log('Current logged in user:', user);
         setCurrentUser(user);
         
         if (user) {
-          // User role từ Base44 built-in User entity
           if (user.role === 'admin') {
             setUserRole('admin');
             console.log('User is Base44 admin');
-            setUserPermissions(['manage_all_users']); // Built-in admin has full permissions
+            setUserPermissions(['manage_all_users']);
           } else {
-            // Regular user
-            // Auto-create UserProfile if not exists + fetch permissions
             try {
               const profiles = await base44.entities.UserProfile.filter({ user_id: user.id });
               
@@ -52,18 +51,17 @@ export default function Layout({ children, currentPageName }) {
                 console.log('Creating UserProfile for extended data:', user.id);
                 await base44.entities.UserProfile.create({
                   user_id: user.id,
-                  role: 'student' // Default role for new users
+                  role: 'student'
                 });
                 console.log('UserProfile created successfully');
-                setUserRole('student'); // Set initial role to student
-                setUserPermissions([]); // No specific permissions for new student by default
+                setUserRole('student');
+                setUserPermissions([]);
               } else {
                 const profile = profiles[0];
-                const currentProfileRole = profile.role || 'user'; // Ensure a default role if not set
+                const currentProfileRole = profile.role || 'user';
                 setUserRole(currentProfileRole);
                 console.log('UserProfile found, role:', currentProfileRole);
                 
-                // Fetch permissions for this role
                 try {
                   const rolePerms = await base44.entities.RolePermission.filter({
                     role_key: currentProfileRole,
@@ -79,7 +77,7 @@ export default function Layout({ children, currentPageName }) {
               }
             } catch (profileError) {
               console.error("Error with UserProfile:", profileError);
-              setUserRole('user'); // Fallback to 'user' if profile fetch fails
+              setUserRole('user');
               setUserPermissions([]);
             }
           }
@@ -91,22 +89,19 @@ export default function Layout({ children, currentPageName }) {
       } catch (error) {
         console.error("Error checking auth:", error);
         
-        // FIXED: Only show network error if it's NOT an authentication error
         const isAuthError = error.message?.toLowerCase().includes('authentication') || 
                            error.message?.toLowerCase().includes('not authenticated') ||
                            error.message?.toLowerCase().includes('unauthorized');
         
         if (!isAuthError) {
-          // This is a real network/server error
           setAuthError(true);
         }
         
-        // User is just not logged in - this is normal
         setUserRole(null);
         setCurrentUser(null);
         setUserPermissions([]);
       } finally {
-        isAuthChecking.current = false; // Set directly
+        isAuthChecking.current = false;
       }
     };
 
@@ -132,10 +127,13 @@ export default function Layout({ children, currentPageName }) {
     window.addEventListener('open-booking-modal', openBookingModal);
     window.addEventListener('open-booking-modal-with-service', openBookingModalWithService);
 
-    // Close user menu when clicking outside
     const handleClickOutside = (event) => {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
         setShowUserMenu(false);
+      }
+      // New: Close services dropdown when clicking outside
+      if (servicesDropdownRef.current && !servicesDropdownRef.current.contains(event.target)) {
+        setShowServicesDropdown(false);
       }
     };
 
@@ -145,7 +143,7 @@ export default function Layout({ children, currentPageName }) {
       window.removeEventListener('scroll', scrollHandler);
       window.removeEventListener('open-booking-modal', openBookingModal);
       window.removeEventListener('open-booking-modal-with-service', openBookingModalWithService);
-      document.removeEventListener('mousedown', handleClickOutside); // Cleanup for user menu
+      document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
 
@@ -162,8 +160,7 @@ export default function Layout({ children, currentPageName }) {
     if (window.confirm('Bạn có chắc muốn đăng xuất?')) {
       try {
         await base44.auth.logout();
-        // Redirect to home or login page after logout
-        window.location.href = createPageUrl("/"); // Reloads the page, clearing all state
+        window.location.href = createPageUrl("/");
       } catch (error) {
         console.error("Error during logout:", error);
         alert("Đăng xuất không thành công. Vui lòng thử lại.");
@@ -178,17 +175,25 @@ export default function Layout({ children, currentPageName }) {
   const navigationItems = React.useMemo(() => {
     const baseItems = [
       { name: "Trang chủ", url: "/", roles: ['all'] },
-      { name: "Dịch vụ", url: createPageUrl("Services"), roles: ['all'] },
-      { name: "Game Khảo Sát", url: createPageUrl("CareerSurveyGame"), roles: ['all'] },
+      { 
+        name: "Dịch vụ", 
+        url: createPageUrl("Services"), 
+        roles: ['all'],
+        hasDropdown: true,
+        dropdownItems: [
+          { name: "Tất cả dịch vụ", url: createPageUrl("Services") },
+          { name: "Trắc nghiệm", url: createPageUrl("Services?category=assessment") },
+          { name: "Tư vấn nghề nghiệp", url: createPageUrl("Services?category=career_counseling") },
+          { name: "Chọn trường - Chọn ngành", url: createPageUrl("Services?category=school_selection") },
+          { name: "Game Khảo Sát", url: createPageUrl("CareerSurveyGame") },
+        ]
+      },
       { name: "Tổ hợp môn", url: createPageUrl("SubjectCombinations"), roles: ['all'] },
       { name: "Trường học", url: createPageUrl("Schools"), roles: ['all'] },
       { name: "Về chúng tôi", url: createPageUrl("Gallery"), roles: ['all'] },
-      { name: "Đội ngũ", url: createPageUrl("Team"), roles: ['all'] },
       { name: "Liên hệ", url: createPageUrl("Contact"), roles: ['all'] }
     ];
 
-    // Filter based on role - all items are public for now
-    // In future, can add role-specific menu items
     return baseItems.filter(item => 
       item.roles.includes('all') || 
       (userRole && item.roles.includes(userRole))
@@ -204,11 +209,9 @@ export default function Layout({ children, currentPageName }) {
   }, [userRole]);
 
   const canAccessAdmin = React.useMemo(() => {
-    // Check if user has admin permissions
     return isAdmin || userPermissions.includes('manage_all_users');
   }, [isAdmin, userPermissions]);
 
-  // Check if current page is an admin page - IMPROVED CHECK
   const isAdminPage = React.useMemo(() => {
     const adminPageNames = [
       'AdminDashboard', 'AdminUsers', 'AdminAppointments', 'AdminSchools', 'AdminSchoolTypes',
@@ -219,19 +222,16 @@ export default function Layout({ children, currentPageName }) {
       'ClassAnalytics', 'BulkImportStudents', 'AcademicRecords'
     ];
     
-    // Check both currentPageName and URL path
     const isAdminByName = currentPageName && adminPageNames.includes(currentPageName);
     const isAdminByPath = location.pathname.toLowerCase().includes('admin');
     
     return isAdminByName || isAdminByPath;
   }, [currentPageName, location.pathname]);
 
-  // If it's an admin page, just render children without client layout
   if (isAdminPage) {
     return <>{children}</>;
   }
 
-  // Use a state derived from useRef for rendering conditional checks
   const isAuthCheckingState = isAuthChecking.current;
 
   if (isLoading) {
@@ -279,7 +279,6 @@ export default function Layout({ children, currentPageName }) {
 
       <SeoSchema />
 
-      {/* Auth Error Banner */}
       {authError && (
         <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 max-w-md w-full mx-4">
           <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg shadow-lg">
@@ -334,27 +333,57 @@ export default function Layout({ children, currentPageName }) {
               </div>
             </Link>
 
-            <div className="hidden lg:flex items-center gap-8" role="menubar">
+            <div className="hidden lg:flex items-center gap-6" role="menubar"> {/* Changed gap from 8 to 6 */}
               {navigationItems.map((item) => (
-                <Link
-                  key={item.name}
-                  to={item.url}
-                  role="menuitem"
-                  className={`text-sm font-medium transition-all duration-300 hover:text-indigo-600 relative group font-body ${
-                    location.pathname === item.url 
-                      ? 'text-indigo-600' 
-                      : (isScrolled || isMenuOpen ? 'text-gray-700' : 'text-white text-shadow-dark')
-                  }`}
-                  aria-current={location.pathname === item.url ? 'page' : undefined}
-                >
-                  {item.name}
-                  <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-indigo-600 transition-all duration-300 group-hover:w-full" aria-hidden="true" />
-                </Link>
+                <div key={item.name} className="relative" ref={item.hasDropdown ? servicesDropdownRef : null}>
+                  {item.hasDropdown ? (
+                    <>
+                      <button
+                        onClick={() => setShowServicesDropdown(!showServicesDropdown)}
+                        className={`text-sm font-medium transition-all duration-300 hover:text-indigo-600 relative group font-body flex items-center gap-1 ${
+                          location.pathname.includes('Services') || location.pathname.includes('CareerSurveyGame')
+                            ? 'text-indigo-600' 
+                            : (isScrolled || isMenuOpen ? 'text-gray-700' : 'text-white text-shadow-dark')
+                        }`}
+                      >
+                        {item.name}
+                        <ChevronDown className="w-4 h-4" />
+                      </button>
+                      {showServicesDropdown && (
+                        <div className="absolute top-full left-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-gray-200 py-2 z-50">
+                          {item.dropdownItems.map((dropItem) => (
+                            <Link
+                              key={dropItem.name}
+                              to={dropItem.url}
+                              onClick={() => setShowServicesDropdown(false)}
+                              className="block px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                            >
+                              {dropItem.name}
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <Link
+                      to={item.url}
+                      role="menuitem"
+                      className={`text-sm font-medium transition-all duration-300 hover:text-indigo-600 relative group font-body ${
+                        location.pathname === item.url 
+                          ? 'text-indigo-600' 
+                          : (isScrolled || isMenuOpen ? 'text-gray-700' : 'text-white text-shadow-dark')
+                      }`}
+                      aria-current={location.pathname === item.url ? 'page' : undefined}
+                    >
+                      {item.name}
+                      <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-indigo-600 transition-all duration-300 group-hover:w-full" aria-hidden="true" />
+                    </Link>
+                  )}
+                </div>
               ))}
             </div>
 
-            <div className="flex items-center gap-3"> {/* Changed gap from 4 to 3 here */}
-              {/* Compact Booking Button */}
+            <div className="flex items-center gap-3">
               <button
                 onClick={() => setIsBookingOpen(true)}
                 className="hidden lg:block bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-5 py-2.5 rounded-full text-sm font-medium hover:from-purple-600 hover:to-indigo-600 transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-indigo-500/30"
@@ -363,7 +392,6 @@ export default function Layout({ children, currentPageName }) {
                 Đặt Lịch
               </button>
 
-              {/* Compact User Menu - Desktop */}
               {isAuthCheckingState ? (
                 <div className="hidden lg:block w-24 h-9 bg-gray-200 animate-pulse rounded-full" />
               ) : userRole ? (
@@ -382,7 +410,6 @@ export default function Layout({ children, currentPageName }) {
                     <span className="font-medium text-sm">Menu</span>
                   </button>
 
-                  {/* Dropdown Menu */}
                   {showUserMenu && (
                     <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-gray-200 py-2 z-50">
                       <div className="px-4 py-3 border-b border-gray-200">
@@ -390,7 +417,6 @@ export default function Layout({ children, currentPageName }) {
                           {currentUser?.full_name || currentUser?.email || 'Người dùng'}
                         </p>
                         <p className="text-xs text-gray-500 mt-1">{currentUser?.email}</p>
-                        {/* Show role badge */}
                         {userRole && userRole !== 'user' && (
                           <span className="inline-block mt-2 text-xs px-2 py-1 bg-indigo-100 text-indigo-700 rounded-full">
                             {userRole === 'admin' ? 'Admin' : 
@@ -425,7 +451,6 @@ export default function Layout({ children, currentPageName }) {
                           </Link>
                         )}
 
-                        {/* Settings only for admin or users with manage permissions */}
                         {(isAdmin || userPermissions.includes('manage_all_users')) && (
                           <Link
                             to={createPageUrl("AdminSettings")}
@@ -464,7 +489,6 @@ export default function Layout({ children, currentPageName }) {
                 </button>
               )}
 
-              {/* Mobile Menu Button */}
               <button
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
                 className="lg:hidden p-2 rounded-lg transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
@@ -492,7 +516,6 @@ export default function Layout({ children, currentPageName }) {
           aria-label="Mobile navigation menu"
         >
           <div className="flex flex-col items-center gap-8 w-full px-6">
-            {/* User Info Section - Mobile */}
             {userRole && currentUser ? (
               <div className="w-full max-w-sm bg-indigo-50 rounded-2xl p-6 mb-4">
                 <div className="flex items-center gap-3 mb-4">
@@ -547,22 +570,36 @@ export default function Layout({ children, currentPageName }) {
               </button>
             )}
 
-            {/* Navigation Links */}
             {navigationItems.map((item) => (
-              <Link
-                key={item.name}
-                to={item.url}
-                onClick={() => setIsMenuOpen(false)}
-                className={`text-2xl font-medium transition-all duration-300 hover:text-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 rounded px-2 py-1 font-display ${
-                  location.pathname === item.url ? 'text-indigo-600' : 'text-gray-800'
-                }`}
-                aria-current={location.pathname === item.url ? 'page' : undefined}
-              >
-                {item.name}
-              </Link>
+              item.hasDropdown ? (
+                <div key={item.name} className="w-full max-w-sm">
+                  <p className="text-lg font-medium text-gray-500 mb-2">{item.name}</p>
+                  {item.dropdownItems.map((dropItem) => (
+                    <Link
+                      key={dropItem.name}
+                      to={dropItem.url}
+                      onClick={() => setIsMenuOpen(false)}
+                      className="block text-xl font-medium transition-all duration-300 hover:text-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 rounded px-2 py-2 font-display text-gray-700"
+                    >
+                      {dropItem.name}
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <Link
+                  key={item.name}
+                  to={item.url}
+                  onClick={() => setIsMenuOpen(false)}
+                  className={`text-2xl font-medium transition-all duration-300 hover:text-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 rounded px-2 py-1 font-display ${
+                    location.pathname === item.url ? 'text-indigo-600' : 'text-gray-800'
+                  }`}
+                  aria-current={location.pathname === item.url ? 'page' : undefined}
+                >
+                  {item.name}
+                </Link>
+              )
             ))}
 
-            {/* CTA Button */}
             <button
               onClick={() => {
                 setIsMenuOpen(false);
@@ -574,7 +611,6 @@ export default function Layout({ children, currentPageName }) {
               Đặt Lịch Ngay
             </button>
 
-            {/* Logout Button - Mobile */}
             {userRole && (
               <button
                 onClick={() => {
@@ -596,7 +632,7 @@ export default function Layout({ children, currentPageName }) {
       </main>
 
       <footer className="bg-gradient-to-br from-gray-900 via-indigo-900 to-purple-900 text-white relative overflow-hidden" role="contentinfo">
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS1vcGFjaXR5PSIwLjA1IiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCIvPjwvc3ZnPg==')] opacity-30" aria-hidden="true" />
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS1vcGFjaXR5PSIwLjA1IiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')] opacity-30" aria-hidden="true" />
         
         <div className="relative max-w-7xl mx-auto px-6 lg:px-8 py-16">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-[clamp(1rem,2vw,2.5rem)] text-center md:text-left">
