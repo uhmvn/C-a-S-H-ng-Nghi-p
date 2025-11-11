@@ -10,6 +10,7 @@ import { SkeletonTable } from "@/components/SkeletonLoader";
 import { createPageUrl } from "@/utils";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
+import html2pdf from "html2pdf.js";
 
 function AdminTestResultsContent() {
   const toast = useToast();
@@ -248,7 +249,8 @@ function AdminTestResultsContent() {
     }
   };
 
-  const handleExportCSV = () => {
+  // Enhanced CSV Export with full data
+  const handleExportCSV = async () => {
     const dataToExport = selectedIds.length > 0
       ? filteredResults.filter(r => selectedIds.includes(r.id))
       : filteredResults;
@@ -258,27 +260,584 @@ function AdminTestResultsContent() {
       return;
     }
 
-    const headers = ["Học sinh", "Lớp", "Bài test", "Loại", "Ngày hoàn thành", "Số câu", "AI"];
-    const rows = dataToExport.map(r => [
-      userNameMap[r.user_id] || r.user_id,
-      userClassMap[r.user_id] || "N/A",
-      r.test_name || "N/A",
-      r.test_type || "N/A",
-      r.completed_date ? format(new Date(r.completed_date), "dd/MM/yyyy HH:mm", { locale: vi }) : "N/A",
-      r.answers_count || 0,
-      r.ai_evaluation_id ? "Có" : "Không"
-    ]);
+    toast.info("Đang chuẩn bị dữ liệu xuất...");
 
-    const csv = [headers, ...rows].map(row => row.join(",")).join("\n");
+    // Fetch AI evaluations for each result
+    const enrichedData = await Promise.all(
+      dataToExport.map(async (r) => {
+        let aiEval = null;
+        if (r.ai_evaluation_id) {
+          try {
+            const evals = await base44.entities.AIEvaluation.filter({ 
+              entity_id: r.id,
+              evaluation_type: "test_result" 
+            });
+            aiEval = evals?.[0];
+          } catch (error) {
+            console.error("Error fetching AI eval:", error);
+          }
+        }
+        return { result: r, aiEval };
+      })
+    );
+
+    const headers = [
+      "Học sinh",
+      "Lớp",
+      "Bài test",
+      "Loại test",
+      "Version",
+      "Ngày hoàn thành",
+      "Thời gian làm (phút)",
+      "Số câu trả lời",
+      "Top Type 1",
+      "% Type 1",
+      "Top Type 2",
+      "% Type 2",
+      "Top Type 3",
+      "% Type 3",
+      "Có AI",
+      "Độ tin cậy AI",
+      "Điểm mạnh 1",
+      "Điểm mạnh 2",
+      "Điểm mạnh 3",
+      "Điểm cần cải thiện 1",
+      "Điểm cần cải thiện 2",
+      "Nghề nghiệp gợi ý 1",
+      "Nghề nghiệp gợi ý 2",
+      "Nghề nghiệp gợi ý 3"
+    ];
+
+    const rows = enrichedData.map(({ result: r, aiEval }) => {
+      const topTypes = r.top_types || [];
+      const strengths = aiEval?.strengths || [];
+      const weaknesses = aiEval?.weaknesses || [];
+      const careers = aiEval?.suggested_careers || [];
+
+      return [
+        userNameMap[r.user_id] || r.user_id,
+        userClassMap[r.user_id] || "N/A",
+        r.test_name || "N/A",
+        r.test_type || "N/A",
+        r.test_version || "N/A",
+        r.completed_date ? format(new Date(r.completed_date), "dd/MM/yyyy HH:mm", { locale: vi }) : "N/A",
+        r.duration_seconds ? Math.round(r.duration_seconds / 60) : "N/A",
+        r.answers_count || 0,
+        topTypes[0]?.type || topTypes[0]?.name || "",
+        topTypes[0]?.percentage || "",
+        topTypes[1]?.type || topTypes[1]?.name || "",
+        topTypes[1]?.percentage || "",
+        topTypes[2]?.type || topTypes[2]?.name || "",
+        topTypes[2]?.percentage || "",
+        r.ai_evaluation_id ? "Có" : "Không",
+        aiEval?.confidence_score || "",
+        strengths[0] || "",
+        strengths[1] || "",
+        strengths[2] || "",
+        weaknesses[0] || "",
+        weaknesses[1] || "",
+        careers[0] || "",
+        careers[1] || "",
+        careers[2] || ""
+      ];
+    });
+
+    const csv = [headers, ...rows].map(row => 
+      row.map(cell => {
+        const cellStr = String(cell || "");
+        return cellStr.includes(",") ? `"${cellStr}"` : cellStr;
+      }).join(",")
+    ).join("\n");
+
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `test-results-${new Date().toISOString().split("T")[0]}.csv`;
+    link.download = `test-results-full-${new Date().toISOString().split("T")[0]}.csv`;
     link.click();
 
-    toast.success(`Đã xuất ${dataToExport.length} kết quả`);
+    toast.success(`Đã xuất ${dataToExport.length} kết quả với đầy đủ thông tin`);
   };
 
+  // Generate PDF HTML template
+  const generatePDFHTML = (result, aiEval, studentName, className) => {
+    const topTypes = result.top_types || [];
+    const strengths = aiEval?.strengths || [];
+    const weaknesses = aiEval?.weaknesses || [];
+    const recommendations = aiEval?.recommendations || [];
+    const careers = aiEval?.analysis?.suggested_careers || aiEval?.suggested_careers || [];
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
+          
+          * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+          }
+          
+          body {
+            font-family: 'Roboto', Arial, sans-serif;
+            padding: 30px;
+            background: #ffffff;
+            color: #1f2937;
+            line-height: 1.6;
+          }
+          
+          .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #4f46e5;
+          }
+          
+          .logo {
+            font-size: 28px;
+            font-weight: 700;
+            color: #4f46e5;
+            margin-bottom: 5px;
+          }
+          
+          .subtitle {
+            font-size: 14px;
+            color: #6b7280;
+          }
+          
+          .breadcrumb {
+            font-size: 12px;
+            color: #9ca3af;
+            margin-bottom: 20px;
+          }
+          
+          .test-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 10px;
+          }
+          
+          .test-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f9fafb;
+            border-radius: 8px;
+          }
+          
+          .info-item {
+            font-size: 13px;
+            color: #4b5563;
+          }
+          
+          .info-label {
+            font-weight: 600;
+            color: #374151;
+          }
+          
+          .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin: 25px 0;
+          }
+          
+          .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+          }
+          
+          .stat-icon {
+            font-size: 32px;
+            margin-bottom: 10px;
+          }
+          
+          .stat-number {
+            font-size: 36px;
+            font-weight: 700;
+            display: block;
+          }
+          
+          .stat-label {
+            font-size: 13px;
+            opacity: 0.9;
+          }
+          
+          .section {
+            margin: 30px 0;
+          }
+          
+          .section-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e5e7eb;
+          }
+          
+          .top-types {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+          }
+          
+          .type-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            position: relative;
+          }
+          
+          .type-card.rank-1 {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+          }
+          
+          .type-card.rank-2 {
+            background: linear-gradient(135deg, #7c3aed 0%, #ec4899 100%);
+          }
+          
+          .type-card.rank-3 {
+            background: linear-gradient(135deg, #3b82f6 0%, #4f46e5 100%);
+          }
+          
+          .rank-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 48px;
+            opacity: 0.3;
+            font-weight: 700;
+          }
+          
+          .type-name {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 10px;
+          }
+          
+          .type-percentage {
+            font-size: 40px;
+            font-weight: 700;
+          }
+          
+          .ai-section {
+            background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+            padding: 25px;
+            border-radius: 12px;
+            margin: 25px 0;
+            border-left: 5px solid #7c3aed;
+          }
+          
+          .ai-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #7c3aed;
+            margin-bottom: 15px;
+          }
+          
+          .ai-confidence {
+            font-size: 13px;
+            color: #6b7280;
+            margin-bottom: 15px;
+          }
+          
+          .strengths-weaknesses {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+          }
+          
+          .list-box {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+          }
+          
+          .list-title {
+            font-size: 15px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            color: #374151;
+          }
+          
+          .list-title.strengths {
+            color: #10b981;
+          }
+          
+          .list-title.weaknesses {
+            color: #f59e0b;
+          }
+          
+          .list-item {
+            display: flex;
+            align-items: start;
+            margin-bottom: 10px;
+            font-size: 13px;
+            color: #4b5563;
+          }
+          
+          .list-icon {
+            margin-right: 8px;
+            flex-shrink: 0;
+          }
+          
+          .recommendations {
+            margin-top: 20px;
+          }
+          
+          .recommendation-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            border-left: 4px solid #4f46e5;
+          }
+          
+          .rec-title {
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 5px;
+            font-size: 14px;
+          }
+          
+          .rec-desc {
+            font-size: 13px;
+            color: #6b7280;
+          }
+          
+          .priority-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-left: 8px;
+          }
+          
+          .priority-high {
+            background: #fee2e2;
+            color: #dc2626;
+          }
+          
+          .priority-medium {
+            background: #fef3c7;
+            color: #d97706;
+          }
+          
+          .priority-low {
+            background: #dcfce7;
+            color: #16a34a;
+          }
+          
+          .careers-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+          }
+          
+          .career-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border: 2px solid #e5e7eb;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          }
+          
+          .career-name {
+            font-weight: 600;
+            color: #1f2937;
+            font-size: 15px;
+          }
+          
+          .career-match {
+            font-size: 22px;
+            font-weight: 700;
+            color: #4f46e5;
+          }
+          
+          .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 2px solid #e5e7eb;
+            text-align: center;
+            font-size: 12px;
+            color: #6b7280;
+          }
+          
+          .contact-info {
+            margin-top: 15px;
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            font-size: 11px;
+          }
+          
+          @page {
+            margin: 15mm;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="logo">CỬA SỔ NGHỀ NGHIỆP</div>
+          <div class="subtitle">Career Guidance</div>
+        </div>
+        
+        <div class="breadcrumb">Trang chủ > Hồ sơ > Kết quả test</div>
+        
+        <div class="test-title">${result.test_name || "Bài test"}</div>
+        
+        <div class="test-info">
+          <div class="info-item">
+            <span class="info-label">Học sinh:</span> ${studentName}
+          </div>
+          <div class="info-item">
+            <span class="info-label">Lớp:</span> ${className}
+          </div>
+          <div class="info-item">
+            <span class="info-label">Version:</span> ${result.test_version || "N/A"}
+          </div>
+          <div class="info-item">
+            <span class="info-label">Hoàn thành:</span> ${result.completed_date ? format(new Date(result.completed_date), "dd/MM/yyyy HH:mm", { locale: vi }) : "N/A"}
+          </div>
+        </div>
+        
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon">📋</div>
+            <span class="stat-number">${result.answers_count || 0}</span>
+            <div class="stat-label">Câu trả lời</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">🎯</div>
+            <span class="stat-number">${topTypes.length}</span>
+            <div class="stat-label">Xu hướng chính</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">⏱️</div>
+            <span class="stat-number">${result.duration_seconds ? Math.round(result.duration_seconds / 60) : 0}</span>
+            <div class="stat-label">Phút</div>
+          </div>
+        </div>
+        
+        ${topTypes.length > 0 ? `
+          <div class="section">
+            <div class="section-title">Kết Quả Tính Cách Của Bạn</div>
+            <div class="top-types">
+              ${topTypes.slice(0, 3).map((type, idx) => `
+                <div class="type-card rank-${idx + 1}">
+                  <div class="rank-badge">#${idx + 1}</div>
+                  <div class="type-name">${type.type || type.name || "N/A"}</div>
+                  <div class="type-percentage">${type.percentage || 0}%</div>
+                </div>
+              `).join("")}
+            </div>
+            ${result.interpretation ? `
+              <div style="background: #f3f4f6; padding: 15px; border-radius: 8px; margin-top: 15px; font-size: 13px; color: #4b5563;">
+                ${result.interpretation}
+              </div>
+            ` : ""}
+          </div>
+        ` : ""}
+        
+        ${aiEval ? `
+          <div class="ai-section">
+            <div class="ai-title">🧠 Phân Tích AI Chuyên Sâu</div>
+            <div class="ai-confidence">
+              Độ tin cậy: ${aiEval.confidence_score || 0}% | Model: ${aiEval.ai_model || "N/A"}
+            </div>
+            
+            <div class="strengths-weaknesses">
+              ${strengths.length > 0 ? `
+                <div class="list-box">
+                  <div class="list-title strengths">✅ Điểm Mạnh</div>
+                  ${strengths.map(s => `
+                    <div class="list-item">
+                      <span class="list-icon">✓</span>
+                      <span>${s}</span>
+                    </div>
+                  `).join("")}
+                </div>
+              ` : ""}
+              
+              ${weaknesses.length > 0 ? `
+                <div class="list-box">
+                  <div class="list-title weaknesses">⚠️ Điểm Cần Cải Thiện</div>
+                  ${weaknesses.map(w => `
+                    <div class="list-item">
+                      <span class="list-icon">→</span>
+                      <span>${w}</span>
+                    </div>
+                  `).join("")}
+                </div>
+              ` : ""}
+            </div>
+            
+            ${recommendations.length > 0 ? `
+              <div class="recommendations">
+                <div class="list-title">💡 Khuyến Nghị Phát Triển</div>
+                ${recommendations.map(rec => `
+                  <div class="recommendation-item">
+                    <div class="rec-title">
+                      ${rec.title || "Khuyến nghị"}
+                      ${rec.priority ? `<span class="priority-badge priority-${rec.priority}">${rec.priority}</span>` : ""}
+                    </div>
+                    <div class="rec-desc">${rec.description || ""}</div>
+                  </div>
+                `).join("")}
+              </div>
+            ` : ""}
+          </div>
+        ` : ""}
+        
+        ${careers.length > 0 ? `
+          <div class="section">
+            <div class="section-title">🎯 Top Nghề Nghiệp Phù Hợp</div>
+            <div class="careers-grid">
+              ${careers.slice(0, 10).map(career => {
+                const careerName = typeof career === "string" ? career : (career.career || career.name || "N/A");
+                const matchPct = career.match_percentage || career.percentage || "";
+                return `
+                  <div class="career-card">
+                    <div class="career-name">${careerName}</div>
+                    ${matchPct ? `<div class="career-match">${matchPct}%</div>` : ""}
+                  </div>
+                `;
+              }).join("")}
+            </div>
+          </div>
+        ` : ""}
+        
+        <div class="footer">
+          <div class="logo" style="font-size: 18px; margin-bottom: 10px;">CỬA SỐ NGHỀ NGHIỆP</div>
+          <div>Nền tảng hướng nghiệp thông minh dành cho học sinh THCS & THPT</div>
+          <div class="contact-info">
+            <div>📍 523, Phạm Hùng, Phường Bà Ria, TP Bà Ria, Bà Rịa - Vũng Tàu</div>
+            <div>📞 (0254) 3 826 178</div>
+            <div>✉️ c2nguyendu.baria.bariavungtau@moet.edu.vn</div>
+          </div>
+          <div style="margin-top: 10px;">© 2024 Cửa Sổ Nghề Nghiệp. All rights reserved.</div>
+        </div>
+      </body>
+      </html>
+    `;
+  };
+
+  // Enhanced PDF Export with html2pdf.js
   const handleExportPDF = async () => {
     const resultsToExport = selectedIds.length > 0
       ? filteredResults.filter(r => selectedIds.includes(r.id))
@@ -296,14 +855,74 @@ function AdminTestResultsContent() {
       const result = resultsToExport[i];
       setExportProgress({ current: i + 1, total: resultsToExport.length });
 
-      const detailUrl = createPageUrl(`TestResultDetail?id=${result.id}`);
-      window.open(detailUrl, "_blank");
-      
-      await new Promise(resolve => setTimeout(resolve, 500));
+      try {
+        // Fetch AI evaluation
+        let aiEval = null;
+        if (result.ai_evaluation_id) {
+          try {
+            const evals = await base44.entities.AIEvaluation.filter({ 
+              entity_id: result.id,
+              evaluation_type: "test_result" 
+            });
+            aiEval = evals?.[0];
+          } catch (error) {
+            console.error("Error fetching AI eval:", error);
+          }
+        }
+
+        const studentName = userNameMap[result.user_id] || "HocSinh";
+        const className = userClassMap[result.user_id] || "N/A";
+        
+        // Generate HTML
+        const htmlContent = generatePDFHTML(result, aiEval, studentName, className);
+        
+        // Create temporary div
+        const tempDiv = document.createElement("div");
+        tempDiv.innerHTML = htmlContent;
+        tempDiv.style.position = "absolute";
+        tempDiv.style.left = "-9999px";
+        document.body.appendChild(tempDiv);
+        
+        // Generate filename
+        const safeStudentName = studentName.replace(/[^a-zA-Z0-9]/g, "_");
+        const testType = (result.test_type || "test").replace(/[^a-zA-Z0-9]/g, "_");
+        const dateStr = result.completed_date ? format(new Date(result.completed_date), "yyyyMMdd") : "NoDate";
+        const filename = `${safeStudentName}_${testType}_${dateStr}.pdf`;
+        
+        // Convert to PDF
+        const opt = {
+          margin: [10, 10, 10, 10],
+          filename: filename,
+          image: { type: "jpeg", quality: 0.98 },
+          html2canvas: { 
+            scale: 2, 
+            useCORS: true,
+            letterRendering: true
+          },
+          jsPDF: { 
+            unit: "mm", 
+            format: "a4", 
+            orientation: "portrait" 
+          }
+        };
+        
+        await html2pdf().set(opt).from(tempDiv).save();
+        
+        // Cleanup
+        document.body.removeChild(tempDiv);
+        
+        // Small delay between files
+        if (i < resultsToExport.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      } catch (error) {
+        console.error("PDF generation error:", error);
+        toast.error(`Lỗi xuất PDF cho ${userNameMap[result.user_id]}: ${error.message}`);
+      }
     }
 
     setIsExporting(false);
-    toast.success(`Đã mở ${resultsToExport.length} cửa sổ để tải PDF. Vui lòng in/lưu từ mỗi trang.`);
+    toast.success(`Đã xuất ${resultsToExport.length} file PDF thành công!`);
   };
 
   const stats = useMemo(() => {
@@ -494,7 +1113,7 @@ function AdminTestResultsContent() {
                       className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 text-sm"
                     >
                       <FileDown className="w-4 h-4" />
-                      Xuất CSV
+                      Xuất CSV đầy đủ
                     </button>
                     <button
                       onClick={handleExportPDF}
@@ -504,7 +1123,7 @@ function AdminTestResultsContent() {
                       {isExporting ? (
                         <>
                           <Loader2 className="w-4 h-4 animate-spin" />
-                          {exportProgress.current}/{exportProgress.total}
+                          Đang xuất {exportProgress.current}/{exportProgress.total}...
                         </>
                       ) : (
                         <>
