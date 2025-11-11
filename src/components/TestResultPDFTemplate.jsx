@@ -10,4 +10,4 @@ export default function TestResultPDFTemplate({ result, user, aiEvaluation, acad
   const studentName = user?.full_name || 'Học sinh';
 
   return (
-    <div className="bg-white" style={{ width: '210mm
+    <div className="bg-white p-12" style={{ fontFamily: 'Arial,
