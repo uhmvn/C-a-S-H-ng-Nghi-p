@@ -19,7 +19,6 @@ import AdminUsers from './pages/AdminUsers';
 import UserProfile from './pages/UserProfile';
 import AdminAppointments from './pages/AdminAppointments';
 import AdminSchools from './pages/AdminSchools';
-import AdminTestResults from './pages/AdminTestResults';
 import AdminServices from './pages/AdminServices';
 import AdminAuditLog from './pages/AdminAuditLog';
 import AdminNotifications from './pages/AdminNotifications';
@@ -71,7 +70,6 @@ export const PAGES = {
     "UserProfile": UserProfile,
     "AdminAppointments": AdminAppointments,
     "AdminSchools": AdminSchools,
-    "AdminTestResults": AdminTestResults,
     "AdminServices": AdminServices,
     "AdminAuditLog": AdminAuditLog,
     "AdminNotifications": AdminNotifications,
