@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FileText, Search, Eye, Download, Calendar, User, CheckCircle, X, BarChart3, Shield, TrendingUp, Loader2, SlidersHorizontal, FileDown } from "lucide-react";
@@ -10,7 +11,6 @@ import { SkeletonTable } from "@/components/SkeletonLoader";
 import { createPageUrl } from "@/utils";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
-import html2pdf from "html2pdf.js";
 
 function AdminTestResultsContent() {
   const toast = useToast();
@@ -31,8 +31,29 @@ function AdminTestResultsContent() {
   const [currentPage, setCurrentPage] = useState(1);
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState({ current: 0, total: 0 });
+  const [html2pdfLoaded, setHtml2pdfLoaded] = useState(false);
   
   const resultsPerPage = 20;
+
+  // Load html2pdf.js from CDN
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !window.html2pdf && !html2pdfLoaded) {
+      const script = document.createElement("script");
+      script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
+      script.async = true;
+      script.onload = () => {
+        console.log("html2pdf.js loaded successfully");
+        setHtml2pdfLoaded(true);
+      };
+      script.onerror = () => {
+        console.error("Failed to load html2pdf.js");
+        toast.error("Không thể tải thư viện xuất PDF. Vui lòng kiểm tra kết nối mạng.");
+      };
+      document.head.appendChild(script);
+    } else if (typeof window !== 'undefined' && window.html2pdf) {
+      setHtml2pdfLoaded(true);
+    }
+  }, [html2pdfLoaded, toast]); // Add toast to dependency array if it's stable
 
   useEffect(() => {
     const fetchUserPermissions = async () => {
@@ -823,7 +844,7 @@ function AdminTestResultsContent() {
         ` : ""}
         
         <div class="footer">
-          <div class="logo" style="font-size: 18px; margin-bottom: 10px;">CỬA SỐ NGHỀ NGHIỆP</div>
+          <div class="logo" style="font-size: 18px; margin-bottom: 10px;">CỬA SỔ NGHỀ NGHIỆP</div>
           <div>Nền tảng hướng nghiệp thông minh dành cho học sinh THCS & THPT</div>
           <div class="contact-info">
             <div>📍 523, Phạm Hùng, Phường Bà Ria, TP Bà Ria, Bà Rịa - Vũng Tàu</div>
@@ -839,6 +860,11 @@ function AdminTestResultsContent() {
 
   // Enhanced PDF Export with html2pdf.js
   const handleExportPDF = async () => {
+    if (typeof window === 'undefined' || !window.html2pdf) {
+      toast.error("Đang tải thư viện PDF, vui lòng thử lại sau vài giây...");
+      return;
+    }
+
     const resultsToExport = selectedIds.length > 0
       ? filteredResults.filter(r => selectedIds.includes(r.id))
       : filteredResults;
@@ -884,8 +910,8 @@ function AdminTestResultsContent() {
         document.body.appendChild(tempDiv);
         
         // Generate filename
-        const safeStudentName = studentName.replace(/[^a-zA-Z0-9]/g, "_");
-        const testType = (result.test_type || "test").replace(/[^a-zA-Z0-9]/g, "_");
+        const safeStudentName = studentName.replace(/[^a-zA-Z0-9\s_]/g, "").replace(/\s+/g, "_");
+        const testType = (result.test_type || "test").replace(/[^a-zA-Z0-9\s_]/g, "").replace(/\s+/g, "_");
         const dateStr = result.completed_date ? format(new Date(result.completed_date), "yyyyMMdd") : "NoDate";
         const filename = `${safeStudentName}_${testType}_${dateStr}.pdf`;
         
@@ -906,7 +932,7 @@ function AdminTestResultsContent() {
           }
         };
         
-        await html2pdf().set(opt).from(tempDiv).save();
+        await window.html2pdf().set(opt).from(tempDiv).save();
         
         // Cleanup
         document.body.removeChild(tempDiv);
@@ -1117,13 +1143,18 @@ function AdminTestResultsContent() {
                     </button>
                     <button
                       onClick={handleExportPDF}
-                      disabled={isExporting}
+                      disabled={isExporting || !html2pdfLoaded}
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm disabled:opacity-50"
                     >
                       {isExporting ? (
                         <>
                           <Loader2 className="w-4 h-4 animate-spin" />
                           Đang xuất {exportProgress.current}/{exportProgress.total}...
+                        </>
+                      ) : !html2pdfLoaded ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Đang tải...
                         </>
                       ) : (
                         <>
