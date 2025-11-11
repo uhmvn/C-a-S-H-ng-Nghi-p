@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, Trophy, ArrowRight, Volume2, VolumeX, Lock, Lightbulb, RotateCcw, Save, Heart, ThumbsUp, Star, Zap, ChevronRight } from "lucide-react";
+import { Sparkles, Trophy, ArrowRight, Volume2, VolumeX, Lock, Lightbulb, RotateCcw, Save, Heart, ChevronRight } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { useMutation } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -157,8 +157,13 @@ export default function CareerSurveyGame() {
     // Load saved progress
     const saved = localStorage.getItem('survey_progress');
     if (saved) {
-      const data = JSON.parse(saved);
-      setSavedProgress(data);
+      try {
+        const data = JSON.parse(saved);
+        setSavedProgress(data);
+      } catch (error) {
+        console.error('Error parsing saved progress:', error);
+        localStorage.removeItem('survey_progress');
+      }
     }
   }, []);
 
@@ -184,6 +189,7 @@ export default function CareerSurveyGame() {
     setTimeout(() => {
       if (questionId < 10) {
         setCurrentQuestion(questionId + 1);
+        setShowHint(false); // Reset hint for next question
       } else {
         // All done
         setShowCelebration(true);
@@ -207,25 +213,30 @@ export default function CareerSurveyGame() {
       const newAnswers = { ...answers };
       delete newAnswers[currentQuestion];
       setAnswers(newAnswers);
+      setShowHint(false);
       if (soundEnabled) playSound('undo');
     }
   };
 
   const saveProgress = (questionId, value) => {
-    const progress = {
-      answers: { ...answers, [questionId]: value },
-      currentQuestion: questionId + 1,
-      testType,
-      timestamp: Date.now()
-    };
-    localStorage.setItem('survey_progress', JSON.stringify(progress));
+    try {
+      const progress = {
+        answers: { ...answers, [questionId]: value },
+        currentQuestion: questionId < 10 ? questionId + 1 : questionId,
+        testType,
+        timestamp: Date.now()
+      };
+      localStorage.setItem('survey_progress', JSON.stringify(progress));
+    } catch (error) {
+      console.error('Error saving progress:', error);
+    }
   };
 
   const loadSavedProgress = () => {
-    if (savedProgress) {
+    if (savedProgress && savedProgress.answers) {
       setAnswers(savedProgress.answers);
-      setCurrentQuestion(savedProgress.currentQuestion);
-      setTestType(savedProgress.testType);
+      setCurrentQuestion(savedProgress.currentQuestion || 1);
+      setTestType(savedProgress.testType || 'pre');
       setSavedProgress(null);
       localStorage.removeItem('survey_progress');
     }
@@ -259,40 +270,70 @@ export default function CareerSurveyGame() {
   };
 
   const calculateAndSave = () => {
-    const groupScores = {
-      self_awareness: (answers[1] + answers[2]) / 2,
-      career_knowledge: (answers[3] + answers[4] + answers[5]) / 3,
-      confidence: (answers[6] + answers[7]) / 2,
-      action_plan: (answers[8] + answers[9]) / 2,
-      motivation: answers[10]
-    };
-    
-    const overallScore = Object.values(answers).reduce((sum, val) => sum + val, 0) / 10;
-    
-    const groupNames = {
-      self_awareness: "Nhận thức bản thân",
-      career_knowledge: "Hiểu biết nghề nghiệp",
-      confidence: "Tự tin & ra quyết định",
-      action_plan: "Kế hoạch hành động",
-      motivation: "Lan tỏa & cảm hứng"
-    };
-    
-    const sortedGroups = Object.entries(groupScores).sort((a, b) => b[1] - a[1]);
-    
-    const surveyData = {
-      user_id: currentUser?.id || 'guest',
-      student_name: currentUser?.full_name || 'Học sinh',
-      answers: Object.values(answers),
-      group_scores: groupScores,
-      overall_score: parseFloat(overallScore.toFixed(2)),
-      highest_group: groupNames[sortedGroups[0][0]],
-      lowest_group: groupNames[sortedGroups[sortedGroups.length - 1][0]],
-      completed_at: new Date().toISOString(),
-      duration_seconds: Math.floor((Date.now() - startTime) / 1000),
-      test_type: testType
-    };
-    
-    saveSurveyMutation.mutate(surveyData);
+    try {
+      // ✅ FIX: Ensure all answers exist and are valid numbers
+      const validAnswers = {};
+      for (let i = 1; i <= 10; i++) {
+        if (answers[i] && typeof answers[i] === 'number' && !isNaN(answers[i])) {
+          validAnswers[i] = answers[i];
+        } else {
+          console.warn(`Missing or invalid answer for question ${i}`);
+          // Don't proceed if any answer is missing
+          alert(`Vui lòng trả lời đầy đủ tất cả 10 câu hỏi. Câu ${i} chưa có câu trả lời hợp lệ.`);
+          return;
+        }
+      }
+
+      // Calculate group scores with null safety
+      const groupScores = {
+        self_awareness: ((validAnswers[1] || 0) + (validAnswers[2] || 0)) / 2,
+        career_knowledge: ((validAnswers[3] || 0) + (validAnswers[4] || 0) + (validAnswers[5] || 0)) / 3,
+        confidence: ((validAnswers[6] || 0) + (validAnswers[7] || 0)) / 2,
+        action_plan: ((validAnswers[8] || 0) + (validAnswers[9] || 0)) / 2,
+        motivation: validAnswers[10] || 0
+      };
+      
+      // Calculate overall score
+      const answerValues = Object.values(validAnswers);
+      const sum = answerValues.reduce((acc, val) => acc + val, 0);
+      const overallScore = sum / 10;
+      
+      // ✅ FIX: Add validation
+      if (isNaN(overallScore) || overallScore === null || overallScore === undefined) {
+        console.error('Invalid overall score:', overallScore);
+        alert('Lỗi tính điểm. Vui lòng thử lại.');
+        return;
+      }
+      
+      const groupNames = {
+        self_awareness: "Nhận thức bản thân",
+        career_knowledge: "Hiểu biết nghề nghiệp",
+        confidence: "Tự tin & ra quyết định",
+        action_plan: "Kế hoạch hành động",
+        motivation: "Lan tỏa & cảm hứng"
+      };
+      
+      const sortedGroups = Object.entries(groupScores).sort((a, b) => b[1] - a[1]);
+      
+      const surveyData = {
+        user_id: currentUser?.id || 'guest',
+        student_name: currentUser?.full_name || 'Học sinh',
+        answers: answerValues,
+        group_scores: groupScores,
+        overall_score: parseFloat(overallScore.toFixed(2)),
+        highest_group: groupNames[sortedGroups[0][0]],
+        lowest_group: groupNames[sortedGroups[sortedGroups.length - 1][0]],
+        completed_at: new Date().toISOString(),
+        duration_seconds: Math.floor((Date.now() - startTime) / 1000),
+        test_type: testType
+      };
+      
+      console.log('Saving survey data:', surveyData);
+      saveSurveyMutation.mutate(surveyData);
+    } catch (error) {
+      console.error('Error calculating results:', error);
+      alert('Có lỗi xảy ra khi tính kết quả. Vui lòng thử lại.');
+    }
   };
 
   const saveSurveyMutation = useMutation({
@@ -304,6 +345,7 @@ export default function CareerSurveyGame() {
       navigate(createPageUrl(`SurveyResult?id=${result.id}`));
     },
     onError: (error) => {
+      console.error('Save error:', error);
       alert('Lỗi lưu kết quả: ' + error.message);
     }
   });
@@ -330,7 +372,7 @@ export default function CareerSurveyGame() {
             </p>
           </div>
 
-          {savedProgress && (
+          {savedProgress && savedProgress.answers && Object.keys(savedProgress.answers).length > 0 && (
             <div className="bg-yellow-50 border-2 border-yellow-300 rounded-2xl p-6 mb-6">
               <div className="flex items-center gap-3 mb-3">
                 <Save className="w-6 h-6 text-yellow-600" />
@@ -338,7 +380,7 @@ export default function CareerSurveyGame() {
               </div>
               <p className="text-sm text-yellow-800 mb-4">
                 Bạn đã trả lời {Object.keys(savedProgress.answers).length}/10 câu. 
-                Tiếp tục từ câu {savedProgress.currentQuestion}?
+                Tiếp tục từ câu {savedProgress.currentQuestion || 1}?
               </p>
               <div className="flex gap-3">
                 <button
@@ -430,6 +472,23 @@ export default function CareerSurveyGame() {
 
   const totalAnswered = Object.keys(answers).length;
   const currentQ = QUESTIONS[currentQuestion - 1];
+
+  // ✅ Safety check
+  if (!currentQ) {
+    return (
+      <div className="pt-32 pb-24 min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-600 mb-4">Đang tải câu hỏi...</p>
+          <button
+            onClick={() => setCurrentQuestion(1)}
+            className="bg-indigo-600 text-white px-6 py-3 rounded-xl"
+          >
+            Quay lại câu 1
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="pt-32 pb-24 min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
