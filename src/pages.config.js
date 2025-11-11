@@ -45,6 +45,7 @@ import ParentDashboard from './pages/ParentDashboard';
 import AdminStudentInfo from './pages/AdminStudentInfo';
 import CareerSurveyGame from './pages/CareerSurveyGame';
 import SurveyResult from './pages/SurveyResult';
+import AdminTestResults from './pages/AdminTestResults';
 import Layout from './Layout.jsx';
 
 
@@ -96,6 +97,7 @@ export const PAGES = {
     "AdminStudentInfo": AdminStudentInfo,
     "CareerSurveyGame": CareerSurveyGame,
     "SurveyResult": SurveyResult,
+    "AdminTestResults": AdminTestResults,
 }
 
 export const pagesConfig = {

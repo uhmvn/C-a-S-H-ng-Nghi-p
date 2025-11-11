@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { FileText, Search, Eye, Download, Calendar, User, CheckCircle, X, BarChart3, Shield, Target, BookOpen, Brain, TrendingUp, Award, AlertCircle, Sparkles, ExternalLink, ChevronRight, FileDown, CheckSquare, Loader2, SlidersHorizontal } from "lucide-react";
+import { FileText, Search, Eye, Download, Calendar, User, CheckCircle, X, BarChart3, Shield, TrendingUp, Loader2, SlidersHorizontal, FileDown } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AdminLayout from "@/components/AdminLayout";
@@ -27,8 +27,6 @@ function AdminTestResultsContent() {
   
   const [currentUser, setCurrentUser] = useState(null);
   const [userPermissions, setUserPermissions] = useState([]);
-  const [selectedResult, setSelectedResult] = useState(null);
-  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState({ current: 0, total: 0 });
@@ -41,8 +39,8 @@ function AdminTestResultsContent() {
         const user = await base44.auth.me();
         setCurrentUser(user);
 
-        if (user.role === 'admin') {
-          setUserPermissions(['view_all_tests', 'delete_tests', 'export_tests']);
+        if (user.role === "admin") {
+          setUserPermissions(["view_all_tests", "delete_tests", "export_tests"]);
         } else {
           const profiles = await base44.entities.UserProfile.filter({ user_id: user.id });
           if (profiles && profiles.length > 0) {
@@ -55,37 +53,35 @@ function AdminTestResultsContent() {
           }
         }
       } catch (error) {
-        console.error('Error fetching permissions:', error);
+        console.error("Error fetching permissions:", error);
       }
     };
     fetchUserPermissions();
   }, []);
 
   const canViewAllTests = useMemo(() => {
-    return userPermissions.includes('view_all_tests') || currentUser?.role === 'admin';
+    return userPermissions.includes("view_all_tests") || currentUser?.role === "admin";
   }, [userPermissions, currentUser]);
 
   const canDeleteTests = useMemo(() => {
-    return userPermissions.includes('delete_tests') || currentUser?.role === 'admin';
+    return userPermissions.includes("delete_tests") || currentUser?.role === "admin";
   }, [userPermissions, currentUser]);
 
   const canExportTests = useMemo(() => {
-    return userPermissions.includes('export_tests') || currentUser?.role === 'admin';
+    return userPermissions.includes("export_tests") || currentUser?.role === "admin";
   }, [userPermissions, currentUser]);
 
-  // Fetch test results
   const { data: testResults = [], isLoading: loadingResults } = useQuery({
-    queryKey: ['admin-test-results'],
+    queryKey: ["admin-test-results"],
     queryFn: async () => {
-      return await base44.entities.TestResult.list('-completed_date');
+      return await base44.entities.TestResult.list("-completed_date");
     },
     enabled: canViewAllTests,
     initialData: []
   });
 
-  // Fetch user profiles for student names
   const { data: userProfiles = [] } = useQuery({
-    queryKey: ['user-profiles-for-tests'],
+    queryKey: ["user-profiles-for-tests"],
     queryFn: async () => {
       return await base44.entities.UserProfile.list();
     },
@@ -93,9 +89,8 @@ function AdminTestResultsContent() {
     initialData: []
   });
 
-  // Fetch all users for names
   const { data: users = [] } = useQuery({
-    queryKey: ['users-for-tests'],
+    queryKey: ["users-for-tests"],
     queryFn: async () => {
       try {
         return await base44.asServiceRole.entities.User.list();
@@ -103,11 +98,10 @@ function AdminTestResultsContent() {
         return [];
       }
     },
-    enabled: canViewAllTests && currentUser?.role === 'admin',
+    enabled: canViewAllTests && currentUser?.role === "admin",
     initialData: []
   });
 
-  // Map user_id to student name
   const userNameMap = useMemo(() => {
     const map = {};
     users.forEach(u => {
@@ -115,24 +109,22 @@ function AdminTestResultsContent() {
     });
     userProfiles.forEach(p => {
       if (p.user_id && !map[p.user_id]) {
-        map[p.user_id] = p.user_code || p.class_name || 'N/A';
+        map[p.user_id] = p.user_code || p.class_name || "N/A";
       }
     });
     return map;
   }, [users, userProfiles]);
 
-  // Map user_id to class_name
   const userClassMap = useMemo(() => {
     const map = {};
     userProfiles.forEach(p => {
       if (p.user_id) {
-        map[p.user_id] = p.class_name || 'N/A';
+        map[p.user_id] = p.class_name || "N/A";
       }
     });
     return map;
   }, [userProfiles]);
 
-  // Get unique classes for filter
   const uniqueClasses = useMemo(() => {
     const classes = new Set();
     userProfiles.forEach(p => {
@@ -141,7 +133,6 @@ function AdminTestResultsContent() {
     return Array.from(classes).sort();
   }, [userProfiles]);
 
-  // Get unique test types for filter
   const uniqueTestTypes = useMemo(() => {
     const types = new Set();
     testResults.forEach(r => {
@@ -150,31 +141,26 @@ function AdminTestResultsContent() {
     return Array.from(types);
   }, [testResults]);
 
-  // Filtered and sorted results
   const filteredResults = useMemo(() => {
     let results = [...testResults];
 
-    // Search filter
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       results = results.filter(r => {
-        const studentName = (userNameMap[r.user_id] || '').toLowerCase();
-        const testName = (r.test_name || '').toLowerCase();
+        const studentName = (userNameMap[r.user_id] || "").toLowerCase();
+        const testName = (r.test_name || "").toLowerCase();
         return studentName.includes(term) || testName.includes(term) || r.user_id.toLowerCase().includes(term);
       });
     }
 
-    // Type filter
-    if (filterType !== 'all') {
+    if (filterType !== "all") {
       results = results.filter(r => r.test_type === filterType);
     }
 
-    // Class filter
-    if (filterClass !== 'all') {
+    if (filterClass !== "all") {
       results = results.filter(r => userClassMap[r.user_id] === filterClass);
     }
 
-    // Date range filter
     if (filterDateFrom) {
       results = results.filter(r => {
         const date = new Date(r.completed_date);
@@ -188,24 +174,22 @@ function AdminTestResultsContent() {
       });
     }
 
-    // AI evaluation filter
-    if (filterAI === 'yes') {
+    if (filterAI === "yes") {
       results = results.filter(r => r.ai_evaluation_id);
-    } else if (filterAI === 'no') {
+    } else if (filterAI === "no") {
       results = results.filter(r => !r.ai_evaluation_id);
     }
 
-    // Sorting
     results.sort((a, b) => {
       switch (sortBy) {
-        case 'date_desc':
+        case "date_desc":
           return new Date(b.completed_date) - new Date(a.completed_date);
-        case 'date_asc':
+        case "date_asc":
           return new Date(a.completed_date) - new Date(b.completed_date);
-        case 'name_asc':
-          return (userNameMap[a.user_id] || '').localeCompare(userNameMap[b.user_id] || '');
-        case 'name_desc':
-          return (userNameMap[b.user_id] || '').localeCompare(userNameMap[a.user_id] || '');
+        case "name_asc":
+          return (userNameMap[a.user_id] || "").localeCompare(userNameMap[b.user_id] || "");
+        case "name_desc":
+          return (userNameMap[b.user_id] || "").localeCompare(userNameMap[a.user_id] || "");
         default:
           return 0;
       }
@@ -214,14 +198,12 @@ function AdminTestResultsContent() {
     return results;
   }, [testResults, searchTerm, filterType, filterClass, filterDateFrom, filterDateTo, filterAI, sortBy, userNameMap, userClassMap]);
 
-  // Pagination
   const totalPages = Math.ceil(filteredResults.length / resultsPerPage);
   const paginatedResults = filteredResults.slice(
     (currentPage - 1) * resultsPerPage,
     currentPage * resultsPerPage
   );
 
-  // Selection handlers
   const toggleSelectAll = () => {
     if (selectedIds.length === paginatedResults.length) {
       setSelectedIds([]);
@@ -236,29 +218,28 @@ function AdminTestResultsContent() {
     );
   };
 
-  // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: async (id) => {
       return await base44.entities.TestResult.delete(id);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['admin-test-results']);
-      toast.success('Đã xóa kết quả test');
+      queryClient.invalidateQueries(["admin-test-results"]);
+      toast.success("Đã xóa kết quả test");
     },
     onError: (error) => {
-      toast.error('Lỗi khi xóa: ' + error.message);
+      toast.error("Lỗi khi xóa: " + error.message);
     }
   });
 
   const handleDelete = (id) => {
-    if (confirm('Bạn có chắc muốn xóa kết quả test này?')) {
+    if (confirm("Bạn có chắc muốn xóa kết quả test này?")) {
       deleteMutation.mutate(id);
     }
   };
 
   const handleBulkDelete = () => {
     if (selectedIds.length === 0) {
-      toast.warning('Chưa chọn kết quả nào');
+      toast.warning("Chưa chọn kết quả nào");
       return;
     }
     if (confirm(`Xóa ${selectedIds.length} kết quả đã chọn?`)) {
@@ -267,51 +248,44 @@ function AdminTestResultsContent() {
     }
   };
 
-  // Export to CSV
   const handleExportCSV = () => {
     const dataToExport = selectedIds.length > 0
       ? filteredResults.filter(r => selectedIds.includes(r.id))
       : filteredResults;
 
     if (dataToExport.length === 0) {
-      toast.warning('Không có dữ liệu để xuất');
+      toast.warning("Không có dữ liệu để xuất");
       return;
     }
 
-    const headers = ['Học sinh', 'Lớp', 'Bài test', 'Loại', 'Ngày hoàn thành', 'Số câu', 'AI'];
+    const headers = ["Học sinh", "Lớp", "Bài test", "Loại", "Ngày hoàn thành", "Số câu", "AI"];
     const rows = dataToExport.map(r => [
       userNameMap[r.user_id] || r.user_id,
-      userClassMap[r.user_id] || 'N/A',
-      r.test_name || 'N/A',
-      r.test_type || 'N/A',
-      r.completed_date ? format(new Date(r.completed_date), 'dd/MM/yyyy HH:mm', { locale: vi }) : 'N/A',
+      userClassMap[r.user_id] || "N/A",
+      r.test_name || "N/A",
+      r.test_type || "N/A",
+      r.completed_date ? format(new Date(r.completed_date), "dd/MM/yyyy HH:mm", { locale: vi }) : "N/A",
       r.answers_count || 0,
-      r.ai_evaluation_id ? 'Có' : 'Không'
+      r.ai_evaluation_id ? "Có" : "Không"
     ]);
 
-    const csv = [headers, ...rows].map(row => row.join(',')).join('\n');
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
+    const csv = [headers, ...rows].map(row => row.join(",")).join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `test-results-${new Date().toISOString().split('T')[0]}.csv`;
+    link.download = `test-results-${new Date().toISOString().split("T")[0]}.csv`;
     link.click();
 
     toast.success(`Đã xuất ${dataToExport.length} kết quả`);
   };
 
-  // Export to PDF (Option 1: html2pdf approach)
   const handleExportPDF = async () => {
     const resultsToExport = selectedIds.length > 0
       ? filteredResults.filter(r => selectedIds.includes(r.id))
       : filteredResults;
 
     if (resultsToExport.length === 0) {
-      toast.warning('Không có dữ liệu để xuất');
-      return;
-    }
-
-    if (!window.html2pdf) {
-      toast.error('Thư viện html2pdf chưa được tải. Vui lòng thử lại.');
+      toast.warning("Không có dữ liệu để xuất");
       return;
     }
 
@@ -322,27 +296,16 @@ function AdminTestResultsContent() {
       const result = resultsToExport[i];
       setExportProgress({ current: i + 1, total: resultsToExport.length });
 
-      try {
-        // Navigate to detail page
-        const detailUrl = createPageUrl(`TestResultDetail?id=${result.id}`);
-        window.open(detailUrl, '_blank');
-        
-        // Note: This approach requires manual intervention
-        // A better approach would be to render the detail page in a hidden iframe
-        // and use html2pdf on that iframe's content
-        
-        await new Promise(resolve => setTimeout(resolve, 500));
-      } catch (error) {
-        console.error('Export error:', error);
-        toast.error(`Lỗi xuất PDF cho ${userNameMap[result.user_id]}: ${error.message}`);
-      }
+      const detailUrl = createPageUrl(`TestResultDetail?id=${result.id}`);
+      window.open(detailUrl, "_blank");
+      
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
 
     setIsExporting(false);
     toast.success(`Đã mở ${resultsToExport.length} cửa sổ để tải PDF. Vui lòng in/lưu từ mỗi trang.`);
   };
 
-  // Stats
   const stats = useMemo(() => {
     return {
       total: testResults.length,
@@ -375,13 +338,11 @@ function AdminTestResultsContent() {
   return (
     <AdminLayout>
       <div className="p-8">
-        {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Kết Quả Test</h1>
           <p className="text-gray-600">Quản lý và xem kết quả test của học sinh</p>
         </div>
 
-        {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <div className="bg-white rounded-xl p-6 shadow-sm border">
             <div className="flex items-center justify-between mb-2">
@@ -392,7 +353,7 @@ function AdminTestResultsContent() {
           </div>
           <div className="bg-white rounded-xl p-6 shadow-sm border">
             <div className="flex items-center justify-between mb-2">
-              <Brain className="w-8 h-8 text-purple-600" />
+              <BarChart3 className="w-8 h-8 text-purple-600" />
               <span className="text-3xl font-bold text-gray-900">{stats.withAI}</span>
             </div>
             <p className="text-sm text-gray-600">Có phân tích AI</p>
@@ -413,10 +374,8 @@ function AdminTestResultsContent() {
           </div>
         </div>
 
-        {/* Filters and Actions */}
         <div className="bg-white rounded-xl p-6 shadow-sm border mb-8">
           <div className="flex flex-wrap gap-4 mb-4">
-            {/* Search */}
             <div className="flex-1 min-w-[300px]">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -430,7 +389,6 @@ function AdminTestResultsContent() {
               </div>
             </div>
 
-            {/* Quick filters */}
             <select
               value={filterType}
               onChange={(e) => setFilterType(e.target.value)}
@@ -447,16 +405,15 @@ function AdminTestResultsContent() {
               className="px-4 py-2 border rounded-lg hover:bg-gray-50 flex items-center gap-2"
             >
               <SlidersHorizontal className="w-4 h-4" />
-              Bộ lọc {showAdvancedFilters ? '▲' : '▼'}
+              Bộ lọc {showAdvancedFilters ? "▲" : "▼"}
             </button>
           </div>
 
-          {/* Advanced Filters */}
           <AnimatePresence>
             {showAdvancedFilters && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
+                animate={{ opacity: 1, height: "auto" }}
                 exit={{ opacity: 0, height: 0 }}
                 className="border-t pt-4 grid grid-cols-1 md:grid-cols-3 gap-4"
               >
@@ -524,7 +481,6 @@ function AdminTestResultsContent() {
             )}
           </AnimatePresence>
 
-          {/* Bulk Actions */}
           {selectedIds.length > 0 && (
             <div className="mt-4 p-4 bg-indigo-50 rounded-lg flex items-center justify-between">
               <span className="text-sm font-medium text-indigo-900">
@@ -573,7 +529,6 @@ function AdminTestResultsContent() {
           )}
         </div>
 
-        {/* Results Table */}
         <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
           {loadingResults ? (
             <SkeletonTable rows={5} columns={7} />
@@ -608,8 +563,8 @@ function AdminTestResultsContent() {
                   </thead>
                   <tbody className="divide-y divide-gray-200">
                     {paginatedResults.map((result) => {
-                      const studentName = userNameMap[result.user_id] || result.user_id.slice(0, 8) + '...';
-                      const className = userClassMap[result.user_id] || 'N/A';
+                      const studentName = userNameMap[result.user_id] || result.user_id.slice(0, 8) + "...";
+                      const className = userClassMap[result.user_id] || "N/A";
 
                       return (
                         <motion.tr
@@ -637,16 +592,16 @@ function AdminTestResultsContent() {
                           <td className="px-6 py-4 text-sm text-gray-600">{className}</td>
                           <td className="px-6 py-4">
                             <div className="max-w-[200px] truncate text-sm text-gray-900" title={result.test_name}>
-                              {result.test_name || 'N/A'}
+                              {result.test_name || "N/A"}
                             </div>
                           </td>
                           <td className="px-6 py-4">
                             <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs">
-                              {result.test_type || 'N/A'}
+                              {result.test_type || "N/A"}
                             </span>
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-600">
-                            {result.completed_date ? format(new Date(result.completed_date), 'dd/MM/yyyy', { locale: vi }) : 'N/A'}
+                            {result.completed_date ? format(new Date(result.completed_date), "dd/MM/yyyy", { locale: vi }) : "N/A"}
                           </td>
                           <td className="px-6 py-4">
                             {result.ai_evaluation_id ? (
@@ -684,7 +639,6 @@ function AdminTestResultsContent() {
                 </table>
               </div>
 
-              {/* Pagination */}
               {totalPages > 1 && (
                 <div className="px-6 py-4 border-t flex items-center justify-between">
                   <div className="text-sm text-gray-600">
