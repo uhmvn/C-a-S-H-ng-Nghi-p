@@ -99,12 +99,30 @@ function AdminTestResultsContent() {
     initialData: []
   });
 
-  const { data: users = [] } = useQuery({
-    queryKey: ['testUsers'],
+  const { data: userProfiles = [] } = useQuery({
+    queryKey: ['testUserProfiles'],
     queryFn: () => base44.entities.UserProfile.list('-created_date', 2000),
     enabled: canViewAllTests,
     initialData: []
   });
+
+  const { data: userAccounts = [] } = useQuery({
+    queryKey: ['testUserAccounts'],
+    queryFn: () => base44.entities.User.list('-created_date', 2000),
+    enabled: canViewAllTests,
+    initialData: []
+  });
+
+  const users = useMemo(() => {
+    return userProfiles.map(profile => {
+      const account = userAccounts.find(acc => acc.id === profile.user_id);
+      return {
+        ...profile,
+        full_name: account?.full_name || profile.full_name || 'N/A',
+        email: account?.email || 'N/A'
+      };
+    });
+  }, [userProfiles, userAccounts]);
 
   const { data: aiEvaluation } = useQuery({
     queryKey: ['aiEvaluation', selectedResult?.id],
@@ -487,7 +505,6 @@ function AdminTestResultsContent() {
     }
   };
 
-  // REDESIGNED PDF Export - Match Template
   const handleExportPDF = async (useSelected = false) => {
     if (!canExportTests) {
       toast.error('Bạn không có quyền export dữ liệu');
@@ -514,6 +531,10 @@ function AdminTestResultsContent() {
       setExportProgress({ current: 0, total: resultsToExport.length });
 
       const { jsPDF } = await import('jspdf');
+      
+      // Load Roboto font for Vietnamese (placeholder, actual base64 font data needed)
+      // For a real implementation, you would dynamically import the font or embed it.
+      // const robotoFont = "AAEAAAASAQAABAAgR0RFRgBTABMAAAEUAAAAHEdQT1P..."; // This will be a base64 font
 
       // Helper function to check if content fits or needs a new page
       const checkAndAddPage = (doc, currentY, requiredSpace, margin = 20) => {
@@ -537,7 +558,14 @@ function AdminTestResultsContent() {
         setExportProgress({ current: i + 1, total: resultsToExport.length });
 
         const doc = new jsPDF();
+        
+        // Add Vietnamese font support. Using 'helvetica' as a fallback as real font data is not provided.
+        // For production, you would add a font like: doc.addFileToVFS('Roboto-Regular.ttf', robotoFont); doc.addFont('Roboto-Regular.ttf', 'Roboto', 'normal');
+        doc.setFont("helvetica"); // Fallback font, may not fully support all Vietnamese characters
+        
         const user = users.find(u => u.user_id === result.user_id);
+        const studentName = user?.full_name || 'Học sinh';
+        const studentCode = user?.user_code || result.user_id;
         
         // Fetch AI eval & academic
         let aiEval = null;
@@ -553,8 +581,8 @@ function AdminTestResultsContent() {
             aiEval = evals?.[0];
           }
 
-          if (user?.user_id) {
-            const scores = await base44.entities.AcademicScore.filter({ user_id: user.user_id });
+          if (user?.user_id || result.user_id) {
+            const scores = await base44.entities.AcademicScore.filter({ user_id: result.user_id });
             academicScoresDetail = scores || [];
 
             const prevs = await base44.entities.TestResult.filter({
@@ -571,6 +599,7 @@ function AdminTestResultsContent() {
         const pageWidth = 210;
         const margin = 20;
         const contentWidth = pageWidth - (margin * 2);
+        const gap = 5; // Standard gap between elements
 
         // ============ PAGE 1: HEADER & INFO ============
         
@@ -578,14 +607,16 @@ function AdminTestResultsContent() {
         doc.setFillColor(79, 70, 229);
         doc.circle(30, y + 5, 8, 'F');
         doc.setTextColor(255, 255, 255);
-        doc.setFontSize(16);
+        doc.setFontSize(18);
         doc.text('C', 30, y + 8, { align: 'center' });
         
         // Title
         doc.setTextColor(79, 70, 229);
         doc.setFontSize(22);
+        doc.setFont("helvetica", "bold");
         doc.text('CUA SO NGHE NGHIEP', 105, y + 8, { align: 'center' });
         doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
         doc.setTextColor(100, 100, 100);
         doc.text('Career Guidance', 105, y + 14, { align: 'center' });
         
@@ -599,40 +630,45 @@ function AdminTestResultsContent() {
 
         // Test Title Card
         doc.setFillColor(248, 250, 252);
-        doc.roundedRect(margin, y, contentWidth, 35, 3, 3, 'F');
+        doc.roundedRect(margin, y, contentWidth, 38, 3, 3, 'F');
         
         doc.setFontSize(20);
+        doc.setFont("helvetica", "bold");
         doc.setTextColor(0, 0, 0);
-        doc.text(`Trac nghiem ${result.test_name}`, margin + 10, y + 12);
+        const testTitle = `Trac nghiem ${result.test_name || 'Test'}`;
+        doc.text(testTitle, margin + 10, y + 12);
         
         if (result.test_version) {
           doc.setFillColor(79, 70, 229);
           doc.roundedRect(margin + 10, y + 18, 25, 8, 2, 2, 'F');
           doc.setFontSize(9);
+          doc.setFont("helvetica", "bold");
           doc.setTextColor(255, 255, 255);
           doc.text(`Version ${result.test_version}`, margin + 22.5, y + 23, { align: 'center' });
         }
 
         // Completion info
+        doc.setFont("helvetica", "normal");
         doc.setFontSize(10);
         doc.setTextColor(80, 80, 80);
-        doc.text(`Hoan thanh: ${format(new Date(result.completed_date), 'dd/MM/yyyy HH:mm', { locale: vi })}`, margin + 10, y + 28);
+        doc.text(`Hoan thanh: ${format(new Date(result.completed_date), 'dd/MM/yyyy HH:mm', { locale: vi })}`, margin + 10, y + 30);
         
         if (result.duration_seconds) {
           const mins = Math.floor(result.duration_seconds / 60);
           const secs = result.duration_seconds % 60;
-          doc.text(`Thoi gian: ${mins} phut ${secs} giay`, margin + 100, y + 28);
+          doc.text(`Thoi gian: ${mins} phut ${secs} giay`, margin + 100, y + 30);
         }
         
-        y += 45;
+        y += 48;
 
         // Badges (AI analyzed, Download)
         if (aiEval) {
           doc.setFillColor(147, 51, 234);
-          doc.roundedRect(pageWidth - margin - 50, y, 50, 8, 2, 2, 'F');
+          doc.roundedRect(pageWidth - margin - 55, y, 55, 8, 2, 2, 'F');
           doc.setFontSize(8);
+          doc.setFont("helvetica", "bold");
           doc.setTextColor(255, 255, 255);
-          doc.text('Da phan tich AI', pageWidth - margin - 25, y + 5.5, { align: 'center' });
+          doc.text('Da phan tich AI', pageWidth - margin - 27.5, y + 5.5, { align: 'center' });
         }
         
         y += 15;
@@ -646,32 +682,37 @@ function AdminTestResultsContent() {
 
         const boxWidth = (contentWidth - 10) / 3;
         statsData.forEach((stat, idx) => {
-          const x = margin + (idx * (boxWidth + 5));
+          const x = margin + (idx * (boxWidth + gap));
           doc.setFillColor(248, 250, 252);
-          doc.roundedRect(x, y, boxWidth, 30, 2, 2, 'F');
+          doc.roundedRect(x, y, boxWidth, 32, 2, 2, 'F');
           
-          doc.setFontSize(24);
-          doc.text(stat.icon, x + boxWidth/2, y + 12, { align: 'center' });
+          doc.setFontSize(10); // Changed icon size to fit
+          doc.setTextColor(79, 70, 229);
+          doc.setFont("helvetica", "normal");
+          doc.text(stat.icon, x + boxWidth/2, y + 10, { align: 'center' });
           
-          doc.setFontSize(18);
+          doc.setFontSize(20);
+          doc.setFont("helvetica", "bold");
           doc.setTextColor(79, 70, 229);
           doc.text(String(stat.value), x + boxWidth/2, y + 21, { align: 'center' });
           
           doc.setFontSize(8);
+          doc.setFont("helvetica", "normal");
           doc.setTextColor(100, 100, 100);
-          doc.text(stat.label, x + boxWidth/2, y + 26, { align: 'center' });
+          doc.text(stat.label, x + boxWidth/2, y + 27, { align: 'center' });
         });
         
-        y += 40;
+        y += 42;
 
         // ============ PAGE 2: RESULTS ============
         doc.addPage();
         y = 20;
 
         // Section Header
-        doc.setFontSize(16);
+        doc.setFontSize(18);
+        doc.setFont("helvetica", "bold");
         doc.setTextColor(79, 70, 229);
-        doc.text('🎯 Ket Qua Tinh Cach Cua Ban', margin, y);
+        doc.text('Ket Qua Tinh Cach Cua Ban', margin, y);
         y += 15;
 
         // Top 3 Results in gradient cards
@@ -683,35 +724,38 @@ function AdminTestResultsContent() {
           ];
 
           result.top_types.slice(0, 3).forEach((type, idx) => {
-            y = checkAndAddPage(doc, y, 40); // 35 for card + 5 spacing
+            y = checkAndAddPage(doc, y, 40); // 38 for card + 5 spacing
             const grad = gradients[idx];
             
             // Card background
             doc.setFillColor(grad.r, grad.g, grad.b);
-            doc.roundedRect(margin, y, contentWidth, 35, 3, 3, 'F');
+            doc.roundedRect(margin, y, contentWidth, 38, 3, 3, 'F');
             
             // Badge number
-            doc.setFontSize(36);
+            doc.setFontSize(48);
+            doc.setFont("helvetica", "bold");
             doc.setTextColor(255, 255, 255);
-            doc.setGState(doc.GState({ opacity: 0.2 }));
-            doc.text(grad.label, pageWidth - margin - 15, y + 25, { align: 'right' });
+            doc.setGState(doc.GState({ opacity: 0.15 }));
+            doc.text(grad.label, pageWidth - margin - 20, y + 30, { align: 'right' });
             doc.setGState(doc.GState({ opacity: 1 }));
             
             // Type name
-            doc.setFontSize(16);
+            doc.setFontSize(18);
+            doc.setFont("helvetica", "bold");
             doc.setTextColor(255, 255, 255);
             const typeName = type.name || type.type || 'N/A';
-            doc.text(typeName, margin + 10, y + 12);
+            doc.text(typeName, margin + 10, y + 14);
             
             // Percentage
-            doc.setFontSize(32);
-            doc.text(`${type.percentage || 0}%`, margin + 10, y + 28);
+            doc.setFontSize(36);
+            doc.text(`${type.percentage || 0}%`, margin + 10, y + 30);
             
             // Score
-            doc.setFontSize(10);
-            doc.text(`Diem: ${type.score?.toFixed(1) || 'N/A'}`, margin + 45, y + 28);
+            doc.setFontSize(11);
+            doc.setFont("helvetica", "normal");
+            doc.text(`Diem: ${type.score?.toFixed(1) || 'N/A'}`, margin + 52, y + 30);
             
-            y += 40;
+            y += 43;
           });
           
           // Interpretation
@@ -724,6 +768,7 @@ function AdminTestResultsContent() {
             doc.setFillColor(238, 242, 255);
             doc.roundedRect(margin, y, contentWidth, interpHeight, 2, 2, 'F');
             doc.setFontSize(9);
+            doc.setFont("helvetica", "normal");
             doc.setTextColor(60, 60, 60);
             doc.text(interpLines, margin + 10, y + 8);
             y += interpHeight + 10;
@@ -737,103 +782,123 @@ function AdminTestResultsContent() {
 
           // AI Header
           doc.setFillColor(245, 243, 255);
-          doc.roundedRect(margin, y, contentWidth, 25, 3, 3, 'F');
+          doc.roundedRect(margin, y, contentWidth, 28, 3, 3, 'F');
           
           doc.setFontSize(18);
+          doc.setFont("helvetica", "bold");
           doc.setTextColor(79, 70, 229);
-          doc.text('Phan Tich AI Chuyen Sau', margin + 10, y + 10);
+          doc.text('Phan Tich AI Chuyen Sau', margin + 10, y + 12);
           
           doc.setFontSize(9);
+          doc.setFont("helvetica", "normal");
           doc.setTextColor(100, 100, 100);
-          doc.text(`Do tin cay: ${aiEval.confidence_score || 0}% | Model: ${aiEval.ai_model || 'gpt-4o'}`, margin + 10, y + 18);
+          doc.text(`Do tin cay: ${aiEval.confidence_score || 0}% | Model: ${aiEval.ai_model || 'gpt-4o'}`, margin + 10, y + 20);
           
-          y += 35;
+          y += 38;
 
           // Strengths & Weaknesses side by side
           const colWidth = (contentWidth - 5) / 2;
+          const sectionHeight = 65; // Fixed height for strength/weakness boxes
           
           // Strengths
           if (aiEval.strengths && aiEval.strengths.length > 0) {
-            y = checkAndAddPage(doc, y, 70); // for strength/weakness box
+            y = checkAndAddPage(doc, y, sectionHeight + gap);
             doc.setFillColor(240, 253, 244);
-            doc.roundedRect(margin, y, colWidth, 60, 2, 2, 'F');
+            doc.roundedRect(margin, y, colWidth, sectionHeight, 2, 2, 'F');
             doc.setDrawColor(16, 185, 129);
             doc.setLineWidth(2);
-            doc.line(margin, y, margin, y + 60);
+            doc.line(margin, y, margin, y + sectionHeight);
             
             doc.setFontSize(12);
+            doc.setFont("helvetica", "bold");
             doc.setTextColor(5, 150, 105);
-            doc.text('Diem Manh', margin + 5, y + 8);
+            doc.text('Diem Manh', margin + 5, y + 10);
             
             doc.setFontSize(9);
+            doc.setFont("helvetica", "normal");
             doc.setTextColor(30, 30, 30);
-            let strengthY = y + 16;
-            aiEval.strengths.slice(0, 4).forEach(s => {
-              const lines = doc.splitTextToSize(`✓ ${s}`, colWidth - 15);
-              doc.text(lines, margin + 8, strengthY);
-              strengthY += lines.length * 5;
+            let strengthY = y + 18;
+            aiEval.strengths.slice(0, 5).forEach(s => {
+              if (strengthY < y + sectionHeight - 5) { // Ensure text fits
+                const lines = doc.splitTextToSize(s, colWidth - 15);
+                doc.text(lines, margin + 8, strengthY);
+                strengthY += lines.length * 4.5 + 2;
+              }
             });
           }
 
-          // Weaknesses
+          // Weaknesses (positioned relative to strengths, ensuring they are on the same line if space allows)
           if (aiEval.weaknesses && aiEval.weaknesses.length > 0) {
-            y = checkAndAddPage(doc, y, 70); // for strength/weakness box
+            const currentStrengthY = y; // Store Y for strengths
+            y = checkAndAddPage(doc, y, sectionHeight + gap); // Check for page break if weaknesses are added without strengths, otherwise it's handled by strengths
+            
             doc.setFillColor(255, 251, 235);
-            doc.roundedRect(margin + colWidth + 5, y, colWidth, 60, 2, 2, 'F');
+            doc.roundedRect(margin + colWidth + gap, currentStrengthY, colWidth, sectionHeight, 2, 2, 'F');
             doc.setDrawColor(251, 146, 60);
             doc.setLineWidth(2);
-            doc.line(margin + colWidth + 5, y, margin + colWidth + 5, y + 60);
+            doc.line(margin + colWidth + gap, currentStrengthY, margin + colWidth + gap, currentStrengthY + sectionHeight);
             
             doc.setFontSize(12);
+            doc.setFont("helvetica", "bold");
             doc.setTextColor(234, 88, 12);
-            doc.text('Can Cai Thien', margin + colWidth + 10, y + 8);
+            doc.text('Can Cai Thien', margin + colWidth + 10, currentStrengthY + 10);
             
             doc.setFontSize(9);
+            doc.setFont("helvetica", "normal");
             doc.setTextColor(30, 30, 30);
-            let weakY = y + 16;
-            aiEval.weaknesses.slice(0, 4).forEach(w => {
-              const lines = doc.splitTextToSize(`→ ${w}`, colWidth - 15);
-              doc.text(lines, margin + colWidth + 13, weakY);
-              weakY += lines.length * 5;
+            let weakY = currentStrengthY + 18;
+            aiEval.weaknesses.slice(0, 5).forEach(w => {
+              if (weakY < currentStrengthY + sectionHeight - 5) { // Ensure text fits
+                const lines = doc.splitTextToSize(w, colWidth - 15);
+                doc.text(lines, margin + colWidth + 13, weakY);
+                weakY += lines.length * 4.5 + 2;
+              }
             });
+            y = currentStrengthY; // Reset Y for subsequent elements
           }
           
-          y += 70;
+          y += sectionHeight + gap; // Move Y past the taller of the two boxes
 
           // Recommendations
           if (aiEval.recommendations && aiEval.recommendations.length > 0) {
-            const recSectionHeight = 80; // Estimate space needed
-            y = checkAndAddPage(doc, y, recSectionHeight + 10);
+            const recSectionEstimateHeight = Math.min(100, 15 + (aiEval.recommendations.length * 12)); // Estimate max 5 recs, 12pt per line
+            y = checkAndAddPage(doc, y, recSectionEstimateHeight + gap);
 
             doc.setFillColor(238, 242, 255);
-            doc.roundedRect(margin, y, contentWidth, recSectionHeight, 2, 2, 'F'); // This height may need dynamic adjustment
+            doc.roundedRect(margin, y, contentWidth, recSectionEstimateHeight, 2, 2, 'F');
             doc.setDrawColor(79, 70, 229);
             doc.setLineWidth(2);
-            doc.line(margin, y, margin, y + recSectionHeight);
+            doc.line(margin, y, margin, y + recSectionEstimateHeight);
             
             doc.setFontSize(12);
+            doc.setFont("helvetica", "bold");
             doc.setTextColor(79, 70, 229);
-            doc.text('💡 Khuyen Nghi Phat Trien', margin + 5, y + 8);
+            doc.text('Khuyen Nghi Phat Trien', margin + 5, y + 10);
             
             doc.setFontSize(9);
+            doc.setFont("helvetica", "normal");
             doc.setTextColor(30, 30, 30);
-            let recY = y + 16;
+            let recY = y + 18;
             aiEval.recommendations.slice(0, 5).forEach((rec, idx) => {
-              const title = rec.title || `Khuyen nghi ${idx + 1}`;
-              const desc = rec.description || '';
+              if (recY > y + recSectionEstimateHeight - 5) return;
               
+              const title = rec.title || `Khuyen nghi ${idx + 1}`;
+              
+              doc.setFont("helvetica", "bold");
               doc.setTextColor(79, 70, 229);
               doc.text(`${idx + 1}. ${title}`, margin + 8, recY);
               recY += 5;
               
-              if (desc) {
+              if (rec.description && recY < y + recSectionEstimateHeight - 5) {
+                doc.setFont("helvetica", "normal");
                 doc.setTextColor(60, 60, 60);
-                const descLines = doc.splitTextToSize(desc, contentWidth - 20);
-                doc.text(descLines, margin + 12, recY);
-                recY += descLines.length * 4 + 3;
+                const descLines = doc.splitTextToSize(rec.description, contentWidth - 20);
+                const linesToShow = descLines.slice(0, 2); // Show max 2 lines of description
+                doc.text(linesToShow, margin + 12, recY);
+                recY += linesToShow.length * 4 + 3;
               }
             });
-            y += recSectionHeight + 10;
+            y += recSectionEstimateHeight + gap;
           }
         }
 
@@ -843,60 +908,67 @@ function AdminTestResultsContent() {
 
         // Career Suggestions
         if (result.suggested_careers && result.suggested_careers.length > 0) {
-          doc.setFontSize(16);
+          doc.setFontSize(18);
+          doc.setFont("helvetica", "bold");
           doc.setTextColor(79, 70, 229);
-          doc.text('🎯 Top Nghe Nghiep Phu Hop', margin, y);
+          doc.text('Top Nghe Nghiep Phu Hop', margin, y);
           y += 12;
 
           result.suggested_careers.slice(0, 8).forEach((career, idx) => {
-            const careerBlockHeight = 25; // Height for each career block
-            y = checkAndAddPage(doc, y, careerBlockHeight + 5);
+            const careerBlockHeight = 22; // Height for each career block
+            y = checkAndAddPage(doc, y, careerBlockHeight + gap);
 
             doc.setFillColor(238, 242, 255);
-            doc.roundedRect(margin, y, contentWidth, 20, 2, 2, 'F');
+            doc.roundedRect(margin, y, contentWidth, careerBlockHeight, 2, 2, 'F');
             
             doc.setFontSize(11);
+            doc.setFont("helvetica", "bold");
             doc.setTextColor(30, 30, 30);
-            doc.text(career, margin + 10, y + 8);
+            doc.text(career, margin + 10, y + 10);
             
-            doc.setFontSize(14);
+            doc.setFontSize(16);
+            doc.setFont("helvetica", "bold");
             doc.setTextColor(79, 70, 229);
-            doc.text('85%', pageWidth - margin - 15, y + 9, { align: 'right' });
+            const matchPercentage = aiEval?.analysis?.suggested_careers?.[idx]?.match_percentage || 85;
+            doc.text(`${matchPercentage}%`, pageWidth - margin - 15, y + 11, { align: 'right' });
             
             doc.setFontSize(8);
+            doc.setFont("helvetica", "normal");
             doc.setTextColor(100, 100, 100);
-            const reasonText = aiEval?.analysis?.suggested_careers?.[idx]?.reason || 'Phu hop voi tinh cach cua ban';
-            const reasonLines = doc.splitTextToSize(reasonText, contentWidth - 60);
-            doc.text(reasonLines, margin + 10, y + 14);
+            const reasonText = aiEval?.analysis?.suggested_careers?.[idx]?.reason || 'Phu hop voi tinh cach';
+            const reasonLines = doc.splitTextToSize(reasonText, contentWidth - 70);
+            doc.text(reasonLines.slice(0, 1), margin + 10, y + 16); // Only show first line
             
-            y += 25;
+            y += careerBlockHeight + gap;
           });
           
           y += 10;
         }
 
-        // Academic Scores
+        // Academic Scores Grid
         if (academicScoresDetail.length > 0) {
           const validScores = academicScoresDetail.filter(s => typeof s.average_score === 'number');
           if (validScores.length > 0) {
             const gpa = (validScores.reduce((sum, s) => sum + s.average_score, 0) / validScores.length).toFixed(2);
             
-            const academicSectionHeight = 15 + 10 + Math.ceil(validScores.length / 4) * (40 + 5) + 10; // Estimate
-            y = checkAndAddPage(doc, y, academicSectionHeight);
+            const numRows = Math.ceil(validScores.length / 4);
+            const boxSize = 42;
+            const academicContentHeight = 15 + 10 + (numRows * (boxSize + gap));
+            y = checkAndAddPage(doc, y, academicContentHeight);
             
-            doc.setFontSize(16);
+            doc.setFontSize(18);
+            doc.setFont("helvetica", "bold");
             doc.setTextColor(59, 130, 246);
-            doc.text(`📚 Ket Hop Voi Ket Qua Hoc Tap (GPA: ${gpa})`, margin, y);
-            y += 12;
-
-            doc.setFontSize(9);
-            doc.setTextColor(80, 80, 80);
-            doc.text(`Dua tren ${validScores.length} diem hoc tap, AI da phan tich va dua ra goi y phu hop.`, margin, y);
+            doc.text(`Ket Hop Voi Ket Qua Hoc Tap (GPA: ${gpa})`, margin, y);
             y += 10;
 
+            doc.setFontSize(9);
+            doc.setFont("helvetica", "normal");
+            doc.setTextColor(80, 80, 80);
+            doc.text(`Dua tren ${validScores.length} diem hoc tap, AI da phan tich va dua ra goi y phu hop.`, margin, y);
+            y += 12;
+
             const topAcademic = validScores.sort((a, b) => (b.average_score || 0) - (a.average_score || 0)).slice(0, 8);
-            const boxSize = 40;
-            const gap = 5;
             const cols = 4;
             
             topAcademic.forEach((score, idx) => {
@@ -905,8 +977,6 @@ function AdminTestResultsContent() {
               const x = margin + (col * (boxSize + gap));
               const boxY = y + (row * (boxSize + gap));
               
-              y = checkAndAddPage(doc, boxY, boxSize + gap); // Check before drawing box
-
               doc.setFillColor(239, 246, 255);
               doc.roundedRect(x, boxY, boxSize, boxSize, 2, 2, 'F');
               doc.setDrawColor(191, 219, 254);
@@ -914,16 +984,18 @@ function AdminTestResultsContent() {
               doc.roundedRect(x, boxY, boxSize, boxSize, 2, 2, 'S');
               
               doc.setFontSize(7);
+              doc.setFont("helvetica", "normal");
               doc.setTextColor(100, 100, 100);
               const subjectLines = doc.splitTextToSize(score.subject_name, boxSize - 4);
-              doc.text(subjectLines, x + boxSize/2, boxY + 8, { align: 'center' });
+              doc.text(subjectLines.slice(0, 2), x + boxSize/2, boxY + 10, { align: 'center', maxWidth: boxSize - 4 });
               
-              doc.setFontSize(16);
+              doc.setFontSize(18);
+              doc.setFont("helvetica", "bold");
               doc.setTextColor(59, 130, 246);
-              doc.text(score.average_score.toFixed(1), x + boxSize/2, boxY + 28, { align: 'center' });
+              doc.text(score.average_score.toFixed(1), x + boxSize/2, boxY + 30, { align: 'center' });
             });
             
-            y += Math.ceil(topAcademic.length / cols) * (boxSize + gap) + 10;
+            y += numRows * (boxSize + gap) + 10;
           }
         }
 
@@ -932,31 +1004,34 @@ function AdminTestResultsContent() {
           doc.addPage();
           y = 20;
 
-          y = checkAndAddPage(doc, y, 40); // For header
+          const prevCompHeight = 15 + 12 + 65 + 10; // Header + intro + boxes + gap
+          y = checkAndAddPage(doc, y, prevCompHeight);
+
           doc.setFillColor(236, 253, 245);
-          doc.roundedRect(margin, y, contentWidth, 20, 2, 2, 'F');
+          doc.roundedRect(margin, y, contentWidth, 22, 2, 2, 'F');
           doc.setDrawColor(16, 185, 129);
           doc.setLineWidth(1.5);
-          doc.line(margin, y, margin, y + 20);
+          doc.line(margin, y, margin, y + 22);
           
-          doc.setFontSize(16);
+          doc.setFontSize(18);
+          doc.setFont("helvetica", "bold");
           doc.setTextColor(5, 150, 105);
-          doc.text('📈 Tien Bo So Voi Lan Truoc', margin + 5, y + 12);
+          doc.text('Tien Bo So Voi Lan Truoc', margin + 5, y + 14);
           
-          y += 30;
+          y += 32;
 
           const latestPrev = previousResults[0];
           
-          y = checkAndAddPage(doc, y, 20); // For intro text
           doc.setFontSize(10);
+          doc.setFont("helvetica", "normal");
           doc.setTextColor(80, 80, 80);
           doc.text(`Ban da lam ${previousResults.length + 1} lan. Lan gan nhat: ${format(new Date(latestPrev.completed_date), 'dd/MM/yyyy', { locale: vi })}`, margin, y);
           y += 12;
 
           // Comparison table
-          const compColWidth = (contentWidth - 5) / 2;
-          const compBlockHeight = 50;
-          y = checkAndAddPage(doc, y, compBlockHeight + 10);
+          const compColWidth = (contentWidth - gap) / 2;
+          const compBlockHeight = 55;
+          y = checkAndAddPage(doc, y, compBlockHeight + gap);
 
           // Current results
           doc.setFillColor(255, 255, 255);
@@ -964,34 +1039,38 @@ function AdminTestResultsContent() {
           doc.setDrawColor(200, 200, 200);
           doc.roundedRect(margin, y, compColWidth, compBlockHeight, 2, 2, 'S');
           
-          doc.setFontSize(11);
+          doc.setFontSize(12);
+          doc.setFont("helvetica", "bold");
           doc.setTextColor(16, 185, 129);
-          doc.text('Hien Tai', margin + 5, y + 8);
+          doc.text('Hien Tai', margin + 5, y + 10);
           
           doc.setFontSize(9);
+          doc.setFont("helvetica", "normal");
           doc.setTextColor(30, 30, 30);
-          let currentY = y + 16;
+          let currentY = y + 18;
           (result.top_types || []).slice(0, 3).forEach(type => {
             doc.text(`${type.name || type.type}: ${type.percentage}%`, margin + 5, currentY);
-            currentY += 5;
+            currentY += 6;
           });
           
           // Previous results
           doc.setFillColor(255, 255, 255);
-          doc.roundedRect(margin + compColWidth + 5, y, compColWidth, compBlockHeight, 2, 2, 'F');
+          doc.roundedRect(margin + compColWidth + gap, y, compColWidth, compBlockHeight, 2, 2, 'F');
           doc.setDrawColor(200, 200, 200);
-          doc.roundedRect(margin + compColWidth + 5, y, compColWidth, compBlockHeight, 2, 2, 'S');
+          doc.roundedRect(margin + compColWidth + gap, y, compColWidth, compBlockHeight, 2, 2, 'S');
           
-          doc.setFontSize(11);
+          doc.setFontSize(12);
+          doc.setFont("helvetica", "bold");
           doc.setTextColor(100, 100, 100);
-          doc.text('Lan Truoc', margin + compColWidth + 10, y + 8);
+          doc.text('Lan Truoc', margin + compColWidth + 10, y + 10);
           
           doc.setFontSize(9);
+          doc.setFont("helvetica", "normal");
           doc.setTextColor(80, 80, 80);
-          let prevY = y + 16;
+          let prevY = y + 18;
           (latestPrev.top_types || []).slice(0, 3).forEach(type => {
             doc.text(`${type.name || type.type}: ${type.percentage}%`, margin + compColWidth + 10, prevY);
-            prevY += 5;
+            prevY += 6;
           });
           
           y += compBlockHeight + 10;
@@ -1009,27 +1088,33 @@ function AdminTestResultsContent() {
         const lastPageHeight = doc.internal.pageSize.height;
         let footerY = lastPageHeight - 50; // Starting position for the footer block
 
-        doc.setFontSize(10);
-        doc.setTextColor(150, 150, 150);
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(120, 120, 120);
         doc.text('Can tu van chuyen sau?', 105, footerY, { align: 'center' });
+        
         doc.setFontSize(9);
+        doc.setFont("helvetica", "normal");
         doc.text('Dat lich voi chuyen gia de phan tich chi tiet va lo trinh phat trien', 105, footerY + 6, { align: 'center' });
         
-        // Contact info
+        // Contact info & branding
         footerY = lastPageHeight - 30;
         doc.setFillColor(79, 70, 229);
         doc.circle(105, footerY, 6, 'F');
         doc.setTextColor(255, 255, 255);
-        doc.setFontSize(10);
-        doc.text('C', 105, footerY + 3, { align: 'center' });
-        
-        footerY += 12;
         doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.text('C', 105, footerY + 4, { align: 'center' });
+        
+        footerY += 14;
+        doc.setFontSize(13);
+        doc.setFont("helvetica", "bold");
         doc.setTextColor(79, 70, 229);
         doc.text('CUA SO NGHE NGHIEP', 105, footerY, { align: 'center' });
         
         footerY += 8;
         doc.setFontSize(8);
+        doc.setFont("helvetica", "normal");
         doc.setTextColor(120, 120, 120);
         doc.text('Nen tang huong nghiep thong minh danh cho hoc sinh THCS & THPT', 105, footerY, { align: 'center' });
 
@@ -1039,7 +1124,7 @@ function AdminTestResultsContent() {
         const url = URL.createObjectURL(pdfBlob);
         const link = document.createElement('a');
         link.href = url;
-        const fileName = `test_result_${user?.user_code || result.user_id}_${new Date().toISOString().split('T')[0]}.pdf`;
+        const fileName = `BaoCao_${studentName.replace(/\s+/g, '_')}_${result.test_type}_${new Date().toISOString().split('T')[0]}.pdf`;
         link.download = fileName;
         document.body.appendChild(link);
         link.click();
