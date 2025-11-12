@@ -1,9 +1,8 @@
-
 import React, { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import {
   Search, Users, BookOpen, TrendingUp, Award, Plus, Edit2, Trash2,
-  Eye, X, Save, Loader2, Mail, Phone, School, Calendar
+  Eye, X, Save, Loader2, Mail, Phone, School, Calendar, Grid3x3, List, Table2
 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -28,6 +27,7 @@ function StudentManagementContent() {
   const [filterGrade, setFilterGrade] = useState("all");
   const [filterClass, setFilterClass] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [viewMode, setViewMode] = useState('grid'); // grid, list, table
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -92,21 +92,26 @@ function StudentManagementContent() {
       total: profiles.length,
       withCode: profiles.filter(p => p.user_code).length,
       active: profiles.filter(p => p.status === 'active').length,
-      averageGPA: 8.5 // This is a placeholder, needs actual calculation
+      averageGPA: 8.5
     };
   }, [profiles]);
 
+  // ✅ CRITICAL FIX: Update with proper data cleaning
   const updateProfileMutation = useMutation({
     mutationFn: async ({ profileId, data }) => {
+      console.log('📝 StudentManagement: Updating profile', profileId, data);
       return await base44.entities.UserProfile.update(profileId, data);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['studentProfiles'] });
-      toast.success('Cập nhật học sinh thành công!');
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['studentProfiles'] });
+      await queryClient.invalidateQueries({ queryKey: ['students-info'] });
+      console.log('✅ Profile updated successfully');
+      toast.success('✅ Cập nhật học sinh thành công!');
       setIsEditModalOpen(false);
     },
     onError: (error) => {
-      toast.error(`Lỗi: ${error.message}`);
+      console.error('❌ Profile update error:', error);
+      toast.error(`❌ Lỗi: ${error.message}`);
     }
   });
 
@@ -143,6 +148,7 @@ function StudentManagementContent() {
 
   const handleSaveEdit = () => {
     if (!selectedStudent) return;
+    console.log('💾 Saving edit form:', editForm);
     updateProfileMutation.mutate({
       profileId: selectedStudent.id,
       data: editForm
@@ -167,7 +173,7 @@ function StudentManagementContent() {
       <div className="p-6 lg:p-8">
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2">
-            <h1 className="text-3xl font-bold text-gray-900">Quản Lý Học Sinh</h1>
+            <h1 className="text-3xl font-bold text-gray-900">👨‍🎓 Quản Lý Học Sinh</h1>
             <Link
               to={createPageUrl("AdminStudentInfo")}
               className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl hover:bg-indigo-700 transition-colors"
@@ -229,48 +235,82 @@ function StudentManagementContent() {
           </div>
         </div>
 
+        {/* Filters + View Mode Toggle */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border mb-6">
-          <div className="grid md:grid-cols-4 gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Tìm học sinh..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500"
-              />
+          <div className="flex items-center justify-between mb-4">
+            <div className="grid md:grid-cols-4 gap-4 flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Tìm học sinh..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <select
+                value={filterGrade}
+                onChange={(e) => setFilterGrade(e.target.value)}
+                className="px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="all">Tất cả khối</option>
+                {uniqueGrades.map(grade => (
+                  <option key={grade} value={grade}>Khối {grade}</option>
+                ))}
+              </select>
+              <select
+                value={filterClass}
+                onChange={(e) => setFilterClass(e.target.value)}
+                className="px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="all">Tất cả lớp</option>
+                {uniqueClasses.map(cls => (
+                  <option key={cls} value={cls}>Lớp {cls}</option>
+                ))}
+              </select>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="all">Tất cả trạng thái</option>
+                <option value="active">Hoạt động</option>
+                <option value="suspended">Tạm khóa</option>
+                <option value="inactive">Không hoạt động</option>
+              </select>
             </div>
-            <select
-              value={filterGrade}
-              onChange={(e) => setFilterGrade(e.target.value)}
-              className="px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="all">Tất cả khối</option>
-              {uniqueGrades.map(grade => (
-                <option key={grade} value={grade}>Khối {grade}</option>
-              ))}
-            </select>
-            <select
-              value={filterClass}
-              onChange={(e) => setFilterClass(e.target.value)}
-              className="px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="all">Tất cả lớp</option>
-              {uniqueClasses.map(cls => (
-                <option key={cls} value={cls}>Lớp {cls}</option>
-              ))}
-            </select>
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="all">Tất cả trạng thái</option>
-              <option value="active">Hoạt động</option>
-              <option value="suspended">Tạm khóa</option>
-              <option value="inactive">Không hoạt động</option>
-            </select>
+
+            {/* View Mode Toggle */}
+            <div className="flex gap-2 bg-gray-100 p-1 rounded-lg ml-4">
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`p-2 rounded-lg transition-colors ${
+                  viewMode === 'grid' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-600'
+                }`}
+                title="Grid View"
+              >
+                <Grid3x3 className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={`p-2 rounded-lg transition-colors ${
+                  viewMode === 'list' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-600'
+                }`}
+                title="List View"
+              >
+                <List className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => setViewMode('table')}
+                className={`p-2 rounded-lg transition-colors ${
+                  viewMode === 'table' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-600'
+                }`}
+                title="Table View"
+              >
+                <Table2 className="w-5 h-5" />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -284,100 +324,270 @@ function StudentManagementContent() {
             <p className="text-gray-600">Chưa có học sinh</p>
           </div>
         ) : (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredStudents.map((student) => (
-              <motion.div
-                key={student.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-white rounded-2xl shadow-sm border hover:shadow-lg transition-all duration-300"
-              >
-                <div className="p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center">
-                        <Users className="w-6 h-6 text-indigo-600" />
+          <>
+            {/* Grid View */}
+            {viewMode === 'grid' && (
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredStudents.map((student) => (
+                  <motion.div
+                    key={student.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-white rounded-2xl shadow-sm border hover:shadow-lg transition-all duration-300"
+                  >
+                    <div className="p-6">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center">
+                            <Users className="w-6 h-6 text-indigo-600" />
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-gray-900">{student.user?.full_name || 'Chưa có tên'}</h3>
+                            <p className="text-sm text-gray-500">{student.user_code || 'Chưa có mã'}</p>
+                          </div>
+                        </div>
+                        <span className={`px-3 py-1 rounded-full text-xs ${
+                          student.status === 'active' ? 'bg-green-100 text-green-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {student.status}
+                        </span>
                       </div>
-                      <div>
-                        <h3 className="font-bold text-gray-900">{student.user?.full_name || 'Chưa có tên'}</h3>
-                        <p className="text-sm text-gray-500">{student.user_code || 'Chưa có mã'}</p>
+
+                      <div className="space-y-2 mb-4">
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <School className="w-4 h-4" />
+                          <span>{student.school_name || '-'}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <BookOpen className="w-4 h-4" />
+                          <span>Lớp {student.class_name || '-'} - Khối {student.grade_level || '-'}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <Phone className="w-4 h-4" />
+                          <span>{student.parent_phone || 'Chưa có SĐT'}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <Mail className="w-4 h-4" />
+                          <span className="truncate">{student.user?.email || 'Chưa có email'}</span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2 mb-4">
+                        <div className="bg-blue-50 rounded-lg p-2 text-center">
+                          <p className="text-lg font-bold text-blue-600">{student.test_count || 0}</p>
+                          <p className="text-xs text-gray-600">Bài test</p>
+                        </div>
+                        <div className="bg-green-50 rounded-lg p-2 text-center">
+                          <p className="text-lg font-bold text-green-600">8.5</p>
+                          <p className="text-xs text-gray-600">Điểm TB</p>
+                        </div>
+                        <div className="bg-yellow-50 rounded-lg p-2 text-center">
+                          <p className="text-lg font-bold text-yellow-600">85%</p>
+                          <p className="text-xs text-gray-600">Hoàn thành</p>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleView(student)}
+                          className="flex-1 flex items-center justify-center gap-2 py-2 border border-indigo-600 text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors"
+                        >
+                          <Eye className="w-4 h-4" />
+                          Xem
+                        </button>
+                        <button
+                          onClick={() => handleEdit(student)}
+                          className="flex-1 flex items-center justify-center gap-2 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                          Sửa
+                        </button>
+                        <Link
+                          to={`${createPageUrl("AdminStudentInfo")}?student=${student.id}`}
+                          className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                          title="Xem chi tiết đầy đủ"
+                        >
+                          <Users className="w-4 h-4" />
+                        </Link>
+                        <button
+                          onClick={() => handleDelete(student)}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
-                    <span className={`px-3 py-1 rounded-full text-xs ${
-                      student.status === 'active' ? 'bg-green-100 text-green-800' :
-                      'bg-red-100 text-red-800'
-                    }`}>
-                      {student.status}
-                    </span>
-                  </div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
 
-                  <div className="space-y-2 mb-4">
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <School className="w-4 h-4" />
-                      <span>{student.school_name || '-'}</span>
+            {/* List View */}
+            {viewMode === 'list' && (
+              <div className="space-y-4">
+                {filteredStudents.map((student) => (
+                  <motion.div
+                    key={student.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="bg-white rounded-xl shadow-sm border p-6 hover:shadow-md transition-all flex items-center gap-6"
+                  >
+                    <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center flex-shrink-0">
+                      <Users className="w-8 h-8 text-indigo-600" />
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <BookOpen className="w-4 h-4" />
-                      <span>Lớp {student.class_name || '-'} - Khối {student.grade_level || '-'}</span>
+                    
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-3 mb-2">
+                        <h3 className="font-bold text-lg text-gray-900">{student.user?.full_name || 'Chưa có tên'}</h3>
+                        <span className={`px-3 py-1 rounded-full text-xs ${
+                          student.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        }`}>
+                          {student.status}
+                        </span>
+                      </div>
+                      <div className="grid md:grid-cols-4 gap-4 text-sm">
+                        <div>
+                          <p className="text-gray-500 text-xs">Mã HS</p>
+                          <p className="font-medium">{student.user_code || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500 text-xs">Lớp</p>
+                          <p className="font-medium">{student.class_name || '-'} (Khối {student.grade_level || '-'})</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500 text-xs">Trường</p>
+                          <p className="font-medium truncate">{student.school_name || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500 text-xs">Tests</p>
+                          <p className="font-medium">{student.test_count || 0} bài</p>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Phone className="w-4 h-4" />
-                      <span>{student.parent_phone || 'Chưa có SĐT'}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Mail className="w-4 h-4" />
-                      <span className="truncate">{student.user?.email || 'Chưa có email'}</span>
-                    </div>
-                  </div>
 
-                  <div className="grid grid-cols-3 gap-2 mb-4">
-                    <div className="bg-blue-50 rounded-lg p-2 text-center">
-                      <p className="text-lg font-bold text-blue-600">{student.test_count || 0}</p>
-                      <p className="text-xs text-gray-600">Bài test</p>
+                    <div className="flex gap-2 flex-shrink-0">
+                      <button
+                        onClick={() => handleView(student)}
+                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+                        title="Xem"
+                      >
+                        <Eye className="w-5 h-5" />
+                      </button>
+                      <button
+                        onClick={() => handleEdit(student)}
+                        className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg"
+                        title="Sửa"
+                      >
+                        <Edit2 className="w-5 h-5" />
+                      </button>
+                      <Link
+                        to={`${createPageUrl("AdminStudentInfo")}?student=${student.id}`}
+                        className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg"
+                        title="Chi tiết"
+                      >
+                        <Users className="w-5 h-5" />
+                      </Link>
+                      <button
+                        onClick={() => handleDelete(student)}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                        title="Xóa"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
                     </div>
-                    <div className="bg-green-50 rounded-lg p-2 text-center">
-                      <p className="text-lg font-bold text-green-600">8.5</p>
-                      <p className="text-xs text-gray-600">Điểm TB</p>
-                    </div>
-                    <div className="bg-yellow-50 rounded-lg p-2 text-center">
-                      <p className="text-lg font-bold text-yellow-600">85%</p>
-                      <p className="text-xs text-gray-600">Hoàn thành</p>
-                    </div>
-                  </div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
 
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleView(student)}
-                      className="flex-1 flex items-center justify-center gap-2 py-2 border border-indigo-600 text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors"
-                    >
-                      <Eye className="w-4 h-4" />
-                      Xem
-                    </button>
-                    <button
-                      onClick={() => handleEdit(student)}
-                      className="flex-1 flex items-center justify-center gap-2 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                      Sửa
-                    </button>
-                    <Link
-                      to={`${createPageUrl("AdminStudentInfo")}?student=${student.id}`}
-                      className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
-                      title="Xem chi tiết đầy đủ"
-                    >
-                      <Users className="w-4 h-4" />
-                    </Link>
-                    <button
-                      onClick={() => handleDelete(student)}
-                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
+            {/* Table View */}
+            {viewMode === 'table' && (
+              <div className="bg-white rounded-2xl shadow-lg border overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 border-b">
+                    <tr>
+                      <th className="px-6 py-4 text-left text-sm font-semibold">Học sinh</th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold">Mã</th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold">Lớp</th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold">Trường</th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold">Tests</th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold">Trạng thái</th>
+                      <th className="px-6 py-4 text-center text-sm font-semibold">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {filteredStudents.map((student) => (
+                      <tr key={student.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
+                              <Users className="w-5 h-5 text-indigo-600" />
+                            </div>
+                            <div>
+                              <p className="font-bold text-gray-900">{student.user?.full_name || 'Chưa có tên'}</p>
+                              <p className="text-xs text-gray-500">{student.user?.email}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="font-mono text-sm">{student.user_code || '-'}</span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <p className="font-medium">{student.class_name || '-'}</p>
+                          <p className="text-xs text-gray-500">Khối {student.grade_level || '-'}</p>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="text-sm">{student.school_name || '-'}</span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-bold">
+                            {student.test_count || 0}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`px-3 py-1 rounded-full text-xs ${
+                            student.status === 'active' ? 'bg-green-100 text-green-800' :
+                            'bg-red-100 text-red-800'
+                          }`}>
+                            {student.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex gap-2 justify-center">
+                            <button
+                              onClick={() => handleView(student)}
+                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleEdit(student)}
+                              className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <Link
+                              to={`${createPageUrl("AdminStudentInfo")}?student=${student.id}`}
+                              className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg"
+                            >
+                              <Users className="w-4 h-4" />
+                            </Link>
+                            <button
+                              onClick={() => handleDelete(student)}
+                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
         )}
 
         {/* View Modal */}

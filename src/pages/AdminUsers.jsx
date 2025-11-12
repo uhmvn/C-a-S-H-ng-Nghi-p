@@ -98,34 +98,34 @@ function AdminUsersContent() {
     cacheTime: 10 * 60 * 1000,
   });
 
-  // Update user mutation
+  // ✅ CRITICAL FIX: Update mutations
   const updateUserMutation = useMutation({
     mutationFn: async ({ userId, data }) => {
+      console.log('📝 Updating User:', userId, data);
       return await base44.entities.User.update(userId, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
-      // toast.success('Cập nhật user thành công!'); // Handled by handleSaveEdit
-      // setIsEditModalOpen(false); // Handled by handleSaveEdit
+      console.log('✅ User updated successfully');
     },
     onError: (error) => {
-      // toast.error(`Lỗi: ${error.message}`); // Handled by handleSaveEdit
-      throw error; // Re-throw to be caught by handleSaveEdit
+      console.error('❌ User update error:', error);
+      throw error;
     }
   });
 
-  // Update profile mutation
   const updateProfileMutation = useMutation({
     mutationFn: async ({ profileId, data }) => {
+      console.log('📝 Updating UserProfile:', profileId, data);
       return await base44.entities.UserProfile.update(profileId, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['profiles'] });
-      // toast.success('Cập nhật profile thành công!'); // Handled by handleSaveEdit
+      console.log('✅ Profile updated successfully');
     },
     onError: (error) => {
-      // toast.error(`Lỗi: ${error.message}`); // Handled by handleSaveEdit
-      throw error; // Re-throw to be caught by handleSaveEdit
+      console.error('❌ Profile update error:', error);
+      throw error;
     }
   });
 
@@ -237,7 +237,9 @@ function AdminUsersContent() {
     if (!selectedUser) return;
 
     try {
-      // ✅ Update User entity with full_name (so it syncs to UserProfile)
+      console.log('🔄 Starting save edit...', editForm);
+      
+      // ✅ Step 1: Update User.full_name and User.role
       await updateUserMutation.mutateAsync({
         userId: selectedUser.id,
         data: {
@@ -248,7 +250,7 @@ function AdminUsersContent() {
 
       let currentProfileId = selectedUser.profile?.id;
 
-      // Update or create Profile
+      // ✅ Step 2: Update or create Profile
       if (selectedUser.profile) {
         await updateProfileMutation.mutateAsync({
           profileId: selectedUser.profile.id,
@@ -261,7 +263,6 @@ function AdminUsersContent() {
           }
         });
       } else {
-        // Create profile if doesn't exist
         const newProfile = await base44.entities.UserProfile.create({
           user_id: selectedUser.id,
           role: editForm.profile_role,
@@ -270,26 +271,35 @@ function AdminUsersContent() {
           class_name: editForm.class_name,
           grade_level: editForm.grade_level
         });
-        currentProfileId = newProfile.id; // Store new profile ID
-        queryClient.invalidateQueries({ queryKey: ['profiles'] }); // Invalidate after creation
+        currentProfileId = newProfile.id;
+        queryClient.invalidateQueries({ queryKey: ['profiles'] });
       }
 
-      // ✅ Assign code if selected
-      const profileAfterMutations = queryClient.getQueryData(['profiles'])?.find(p => p.id === currentProfileId);
-      const hasExistingCode = profileAfterMutations?.user_code; // Check current state after potential profile update
-      if (selectedCodeId && currentProfileId && !hasExistingCode) {
+      // ✅ Step 3: Assign code if selected and user doesn't already have one
+      if (selectedCodeId && currentProfileId) {
+        // Fetch the most up-to-date profile data, especially if it was just created
+        const updatedProfileList = await queryClient.fetchQuery({ queryKey: ['profiles'] });
+        const profileAfterMutation = updatedProfileList.find(p => p.id === currentProfileId);
+        
+        if (!profileAfterMutation?.user_code) { // Only assign if no existing code
           await assignCodeMutation.mutateAsync({
             codeId: selectedCodeId,
             profileId: currentProfileId,
             userId: selectedUser.id
           });
+        }
       }
 
-      toast.success('✅ Cập nhật người dùng thành công! (Đồng bộ với UserProfile)');
-      setIsEditModalOpen(false); // Close modal only after all operations succeed
+      // ✅ CRITICAL: Wait for all invalidations to complete
+      await queryClient.invalidateQueries({ queryKey: ['users'] });
+      await queryClient.invalidateQueries({ queryKey: ['profiles'] });
+      
+      console.log('✅ All updates completed successfully');
+      toast.success('✅ Cập nhật người dùng thành công!');
+      setIsEditModalOpen(false);
     } catch (error) {
-      console.error('Error saving:', error);
-      toast.error(`Lỗi: ${error.message || 'Có lỗi xảy ra khi lưu.'}`); // Show a single error toast
+      console.error('❌ Error saving:', error);
+      toast.error(`❌ Lỗi: ${error.message || 'Có lỗi xảy ra khi lưu.'}`);
     }
   };
 
