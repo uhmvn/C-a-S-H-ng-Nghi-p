@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -71,6 +72,7 @@ export default function AdminLayout({ children }) {
       title: 'Nội dung',
       icon: School,
       items: [
+        { icon: FileText, label: 'CMS (Về chúng tôi, Gallery)', pageName: 'AdminCMS', badge: '🆕' },
         { icon: School, label: 'Trường học', pageName: 'AdminSchools' },
         { icon: ClipboardList, label: 'Loại trường', pageName: 'AdminSchoolTypes' },
         { icon: FileText, label: 'Dịch vụ', pageName: 'AdminServices' },
