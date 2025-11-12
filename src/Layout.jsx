@@ -316,7 +316,7 @@ export default function Layout({ children, currentPageName }) {
             <Link to="/" className="flex items-center gap-3 group" aria-label="CỬA SỔ NGHỀ NGHIỆP - Home">
               <div className="relative">
                 <Compass className={`w-10 h-10 transition-all duration-300 ${
-                  isScrolled || isMenuOpen ? 'text-indigo-600' : 'text-white'
+                  isScrolled || isMenuOpen ? 'text-orange-600' : 'text-white'
                 } group-hover:rotate-180`} />
               </div>
               <div className="flex flex-col">
@@ -333,17 +333,17 @@ export default function Layout({ children, currentPageName }) {
               </div>
             </Link>
 
-            <div className="hidden lg:flex items-center gap-6" role="menubar"> {/* Changed gap from 8 to 6 */}
+            <div className="hidden lg:flex items-center gap-6" role="menubar">
               {navigationItems.map((item) => (
                 <div key={item.name} className="relative" ref={item.hasDropdown ? servicesDropdownRef : null}>
                   {item.hasDropdown ? (
                     <>
                       <button
                         onClick={() => setShowServicesDropdown(!showServicesDropdown)}
-                        className={`text-sm font-medium transition-all duration-300 hover:text-indigo-600 relative group font-body flex items-center gap-1 ${
+                        className={`text-sm font-medium transition-all duration-300 hover:text-orange-600 relative group font-body flex items-center gap-1 ${
                           location.pathname.includes('Services') || location.pathname.includes('CareerSurveyGame')
-                            ? 'text-indigo-600' 
-                            : (isScrolled || isMenuOpen ? 'text-gray-700' : 'text-white text-shadow-dark')
+                            ? 'text-orange-600' 
+                            : (isScrolled || isMenuOpen ? 'text-orange-700' : 'text-white text-shadow-dark')
                         }`}
                       >
                         {item.name}
@@ -356,7 +356,7 @@ export default function Layout({ children, currentPageName }) {
                               key={dropItem.name}
                               to={dropItem.url}
                               onClick={() => setShowServicesDropdown(false)}
-                              className="block px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                              className="block px-4 py-2 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-600 transition-colors"
                             >
                               {dropItem.name}
                             </Link>
@@ -368,15 +368,15 @@ export default function Layout({ children, currentPageName }) {
                     <Link
                       to={item.url}
                       role="menuitem"
-                      className={`text-sm font-medium transition-all duration-300 hover:text-indigo-600 relative group font-body ${
+                      className={`text-sm font-medium transition-all duration-300 hover:text-orange-600 relative group font-body ${
                         location.pathname === item.url 
-                          ? 'text-indigo-600' 
-                          : (isScrolled || isMenuOpen ? 'text-gray-700' : 'text-white text-shadow-dark')
+                          ? 'text-orange-600' 
+                          : (isScrolled || isMenuOpen ? 'text-orange-700' : 'text-white text-shadow-dark')
                       }`}
                       aria-current={location.pathname === item.url ? 'page' : undefined}
                     >
                       {item.name}
-                      <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-indigo-600 transition-all duration-300 group-hover:w-full" aria-hidden="true" />
+                      <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-orange-600 transition-all duration-300 group-hover:w-full" aria-hidden="true" />
                     </Link>
                   )}
                 </div>
@@ -386,7 +386,7 @@ export default function Layout({ children, currentPageName }) {
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setIsBookingOpen(true)}
-                className="hidden lg:block bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-5 py-2.5 rounded-full text-sm font-medium hover:from-purple-600 hover:to-indigo-600 transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-indigo-500/30"
+                className="hidden lg:block bg-gradient-to-r from-orange-600 to-red-600 text-white px-5 py-2.5 rounded-full text-sm font-medium hover:from-red-600 hover:to-orange-600 transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-orange-500/30"
                 aria-label="Đặt lịch tư vấn ngay"
               >
                 Đặt Lịch
@@ -404,7 +404,7 @@ export default function Layout({ children, currentPageName }) {
                         : 'bg-white/20 hover:bg-white/30 text-white backdrop-blur-sm'
                     }`}
                   >
-                    <div className="w-7 h-7 bg-indigo-600 rounded-full flex items-center justify-center">
+                    <div className="w-7 h-7 bg-orange-600 rounded-full flex items-center justify-center">
                       <UserIcon className="w-4 h-4 text-white" />
                     </div>
                     <span className="font-medium text-sm">Menu</span>
@@ -418,7 +418,7 @@ export default function Layout({ children, currentPageName }) {
                         </p>
                         <p className="text-xs text-gray-500 mt-1">{currentUser?.email}</p>
                         {userRole && userRole !== 'user' && (
-                          <span className="inline-block mt-2 text-xs px-2 py-1 bg-indigo-100 text-indigo-700 rounded-full">
+                          <span className="inline-block mt-2 text-xs px-2 py-1 bg-orange-100 text-orange-700 rounded-full">
                             {userRole === 'admin' ? 'Admin' : 
                              userRole === 'school_admin' ? 'Admin Trường' :
                              userRole === 'department_admin' ? 'Admin Sở' :
@@ -434,7 +434,7 @@ export default function Layout({ children, currentPageName }) {
                         <Link
                           to={createPageUrl("UserProfile")}
                           onClick={() => setShowUserMenu(false)}
-                          className="flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-indigo-50 transition-colors"
+                          className="flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-orange-50 transition-colors"
                         >
                           <UserIcon className="w-4 h-4" />
                           <span className="text-sm">Hồ sơ cá nhân</span>
@@ -444,7 +444,7 @@ export default function Layout({ children, currentPageName }) {
                           <Link
                             to={createPageUrl("AdminDashboard")}
                             onClick={() => setShowUserMenu(false)}
-                            className="flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-indigo-50 transition-colors"
+                            className="flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-orange-50 transition-colors"
                           >
                             <LayoutDashboard className="w-4 h-4" />
                             <span className="text-sm">Admin Dashboard</span>
@@ -455,7 +455,7 @@ export default function Layout({ children, currentPageName }) {
                           <Link
                             to={createPageUrl("AdminSettings")}
                             onClick={() => setShowUserMenu(false)}
-                            className="flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-indigo-50 transition-colors"
+                            className="flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-orange-50 transition-colors"
                           >
                             <Settings className="w-4 h-4" />
                             <span className="text-sm">Cài đặt</span>
@@ -480,8 +480,8 @@ export default function Layout({ children, currentPageName }) {
                   onClick={handleLogin}
                   className={`hidden lg:flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-all duration-300 ${
                     isScrolled || isMenuOpen
-                      ? 'bg-white border-2 border-indigo-600 text-indigo-600 hover:bg-indigo-600 hover:text-white'
-                      : 'bg-white/20 backdrop-blur-sm text-white border-2 border-white/30 hover:bg-white hover:text-indigo-600'
+                      ? 'bg-white border-2 border-orange-600 text-orange-600 hover:bg-orange-600 hover:text-white'
+                      : 'bg-white/20 backdrop-blur-sm text-white border-2 border-white/30 hover:bg-white hover:text-orange-600'
                   }`}
                 >
                   <UserIcon className="w-4 h-4" />
@@ -491,7 +491,7 @@ export default function Layout({ children, currentPageName }) {
 
               <button
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className="lg:hidden p-2 rounded-lg transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                className="lg:hidden p-2 rounded-lg transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2"
                 aria-label={isMenuOpen ? "Close menu" : "Open menu"}
                 aria-expanded={isMenuOpen}
                 aria-controls="mobile-menu"
@@ -517,9 +517,9 @@ export default function Layout({ children, currentPageName }) {
         >
           <div className="flex flex-col items-center gap-8 w-full px-6">
             {userRole && currentUser ? (
-              <div className="w-full max-w-sm bg-indigo-50 rounded-2xl p-6 mb-4">
+              <div className="w-full max-w-sm bg-orange-50 rounded-2xl p-6 mb-4">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 bg-indigo-600 rounded-full flex items-center justify-center">
+                  <div className="w-12 h-12 bg-orange-600 rounded-full flex items-center justify-center">
                     <UserIcon className="w-6 h-6 text-white" />
                   </div>
                   <div>
@@ -528,7 +528,7 @@ export default function Layout({ children, currentPageName }) {
                     </p>
                     <p className="text-xs text-gray-600">{currentUser?.email}</p>
                     {userRole && userRole !== 'user' && (
-                      <span className="inline-block mt-1 text-xs px-2 py-1 bg-indigo-100 text-indigo-700 rounded-full">
+                      <span className="inline-block mt-1 text-xs px-2 py-1 bg-orange-100 text-orange-700 rounded-full">
                         {userRole === 'admin' ? 'Admin' : 
                          userRole === 'school_admin' ? 'Admin Trường' :
                          userRole === 'student' ? 'Học sinh' : 'User'}
@@ -540,7 +540,7 @@ export default function Layout({ children, currentPageName }) {
                   <Link
                     to={createPageUrl("UserProfile")}
                     onClick={() => setIsMenuOpen(false)}
-                    className="flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-700"
+                    className="flex items-center gap-2 text-sm text-orange-600 hover:text-orange-700"
                   >
                     <UserIcon className="w-4 h-4" />
                     Hồ sơ cá nhân
@@ -549,7 +549,7 @@ export default function Layout({ children, currentPageName }) {
                     <Link
                       to={createPageUrl("AdminDashboard")}
                       onClick={() => setIsMenuOpen(false)}
-                      className="flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-700"
+                      className="flex items-center gap-2 text-sm text-orange-600 hover:text-orange-700"
                     >
                       <LayoutDashboard className="w-4 h-4" />
                       Admin Dashboard
@@ -563,7 +563,7 @@ export default function Layout({ children, currentPageName }) {
                   setIsMenuOpen(false);
                   handleLogin();
                 }}
-                className="w-full max-w-sm bg-indigo-600 text-white px-6 py-3 rounded-xl font-medium flex items-center justify-center gap-2"
+                className="w-full max-w-sm bg-orange-600 text-white px-6 py-3 rounded-xl font-medium flex items-center justify-center gap-2"
               >
                 <UserIcon className="w-5 h-5" />
                 Đăng nhập
@@ -579,7 +579,7 @@ export default function Layout({ children, currentPageName }) {
                       key={dropItem.name}
                       to={dropItem.url}
                       onClick={() => setIsMenuOpen(false)}
-                      className="block text-xl font-medium transition-all duration-300 hover:text-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 rounded px-2 py-2 font-display text-gray-700"
+                      className="block text-xl font-medium transition-all duration-300 hover:text-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 rounded px-2 py-2 font-display text-gray-700"
                     >
                       {dropItem.name}
                     </Link>
@@ -590,8 +590,8 @@ export default function Layout({ children, currentPageName }) {
                   key={item.name}
                   to={item.url}
                   onClick={() => setIsMenuOpen(false)}
-                  className={`text-2xl font-medium transition-all duration-300 hover:text-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 rounded px-2 py-1 font-display ${
-                    location.pathname === item.url ? 'text-indigo-600' : 'text-gray-800'
+                  className={`text-2xl font-medium transition-all duration-300 hover:text-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 rounded px-2 py-1 font-display ${
+                    location.pathname === item.url ? 'text-orange-600' : 'text-gray-800'
                   }`}
                   aria-current={location.pathname === item.url ? 'page' : undefined}
                 >
@@ -605,7 +605,7 @@ export default function Layout({ children, currentPageName }) {
                 setIsMenuOpen(false);
                 setIsBookingOpen(true);
               }}
-              className="mt-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-8 py-4 rounded-full font-medium hover:from-purple-600 hover:to-indigo-600 transition-all duration-300 shadow-lg font-body focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+              className="mt-4 bg-gradient-to-r from-orange-600 to-red-600 text-white px-8 py-4 rounded-full font-medium hover:from-red-600 hover:to-orange-600 transition-all duration-300 shadow-lg font-body focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2"
               aria-label="Đặt lịch tư vấn ngay"
             >
               Đặt Lịch Ngay
@@ -632,13 +632,13 @@ export default function Layout({ children, currentPageName }) {
       </main>
 
       <footer className="bg-gradient-to-br from-gray-900 via-indigo-900 to-purple-900 text-white relative overflow-hidden" role="contentinfo">
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS1vcGFjaXR5PSIwLjA1IiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')] opacity-30" aria-hidden="true" />
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS1vcGFjaXR5PSIwLjA1IiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCUyMiUyOSIvPjwvc3ZnPg==')] opacity-30" aria-hidden="true" />
         
         <div className="relative max-w-7xl mx-auto px-6 lg:px-8 py-16">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-[clamp(1rem,2vw,2.5rem)] text-center md:text-left">
             <div className="mb-[1.2em]">
               <Link to="/" className="inline-flex items-center gap-3 mb-6 group" aria-label="CỬA SỔ NGHỀ NGHIỆP">
-                <Compass className="w-8 h-8 text-indigo-400 group-hover:rotate-180 transition-transform duration-500" />
+                <Compass className="w-8 h-8 text-orange-400 group-hover:rotate-180 transition-transform duration-500" />
                 <span className="font-display text-xl font-bold">CỬA SỔ NGHỀ NGHIỆP</span>
               </Link>
               <p className="text-gray-300 text-sm leading-relaxed mb-6 font-body">
@@ -649,7 +649,7 @@ export default function Layout({ children, currentPageName }) {
                   href="https://facebook.com" 
                   target="_blank" 
                   rel="noopener noreferrer" 
-                  className="w-10 h-10 bg-white/10 hover:bg-indigo-600 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-110"
+                  className="w-10 h-10 bg-white/10 hover:bg-orange-600 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-110"
                   aria-label="Facebook"
                 >
                   <Facebook className="w-5 h-5" />
@@ -658,7 +658,7 @@ export default function Layout({ children, currentPageName }) {
                   href="https://linkedin.com" 
                   target="_blank" 
                   rel="noopener noreferrer" 
-                  className="w-10 h-10 bg-white/10 hover:bg-indigo-600 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-110"
+                  className="w-10 h-10 bg-white/10 hover:bg-orange-600 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-110"
                   aria-label="LinkedIn"
                 >
                   <Linkedin className="w-5 h-5" />
@@ -667,49 +667,49 @@ export default function Layout({ children, currentPageName }) {
             </div>
 
             <div className="mb-[1.2em]">
-              <h3 className="font-display text-lg font-semibold mb-6 text-indigo-300">Dịch vụ</h3>
+              <h3 className="font-display text-lg font-semibold mb-6 text-orange-300">Dịch vụ</h3>
               <nav aria-label="Services navigation">
                 <ul className="space-y-3 text-sm font-body">
-                  <li><Link to={createPageUrl("Services?category=assessment")} className="text-gray-300 hover:text-indigo-300 transition-colors duration-300">Trắc nghiệm nghề nghiệp</Link></li>
-                  <li><Link to={createPageUrl("Services?category=career_counseling")} className="text-gray-300 hover:text-indigo-300 transition-colors duration-300">Tư vấn định hướng</Link></li>
-                  <li><Link to={createPageUrl("Services?category=ai_analysis")} className="text-gray-300 hover:text-indigo-300 transition-colors duration-300">Phân tích năng lực</Link></li>
-                  <li><Link to={createPageUrl("SubjectCombinations")} className="text-gray-300 hover:text-indigo-300 transition-colors duration-300">Tổ hợp môn thi</Link></li>
-                  <li><Link to={createPageUrl("Schools")} className="text-gray-300 hover:text-indigo-300 transition-colors duration-300">Tư vấn chọn trường</Link></li>
+                  <li><Link to={createPageUrl("Services?category=assessment")} className="text-gray-300 hover:text-orange-300 transition-colors duration-300">Trắc nghiệm nghề nghiệp</Link></li>
+                  <li><Link to={createPageUrl("Services?category=career_counseling")} className="text-gray-300 hover:text-orange-300 transition-colors duration-300">Tư vấn định hướng</Link></li>
+                  <li><Link to={createPageUrl("Services?category=ai_analysis")} className="text-gray-300 hover:text-orange-300 transition-colors duration-300">Phân tích năng lực</Link></li>
+                  <li><Link to={createPageUrl("SubjectCombinations")} className="text-gray-300 hover:text-orange-300 transition-colors duration-300">Tổ hợp môn thi</Link></li>
+                  <li><Link to={createPageUrl("Schools")} className="text-gray-300 hover:text-orange-300 transition-colors duration-300">Tư vấn chọn trường</Link></li>
                 </ul>
               </nav>
             </div>
 
             <div className="mb-[1.2em]">
-              <h3 className="font-display text-lg font-semibold mb-6 text-indigo-300">Liên hệ</h3>
+              <h3 className="font-display text-lg font-semibold mb-6 text-orange-300">Liên hệ</h3>
               <ul className="space-y-3 text-sm font-body">
                 <li className="flex items-start gap-3">
-                  <MapPin className="w-5 h-5 text-indigo-400 flex-shrink-0 mt-0.5" />
+                  <MapPin className="w-5 h-5 text-orange-400 flex-shrink-0 mt-0.5" />
                   <span className="text-gray-300">523, Phạm Hùng, Phường Bà Ria, TP Bà Ria, Bà Rịa - Vũng Tàu</span>
                 </li>
                 <li className="flex items-center gap-3">
-                  <Phone className="w-5 h-5 text-indigo-400 flex-shrink-0" />
-                  <a href="tel:(0254) 3 826 178" className="text-gray-300 hover:text-indigo-300 transition-colors duration-300">(0254) 3 826 178</a>
+                  <Phone className="w-5 h-5 text-orange-400 flex-shrink-0" />
+                  <a href="tel:(0254) 3 826 178" className="text-gray-300 hover:text-orange-300 transition-colors duration-300">(0254) 3 826 178</a>
                 </li>
                 <li className="flex items-center gap-3">
-                  <Mail className="w-5 h-5 text-indigo-400 flex-shrink-0" />
-                  <a href="mailto:c2nguyendu.baria.bariavungtau@moet.edu.vn" className="text-gray-300 hover:text-indigo-300 transition-colors duration-300 break-all">c2nguyendu.baria.bariavungtau@moet.edu.vn</a>
+                  <Mail className="w-5 h-5 text-orange-400 flex-shrink-0" />
+                  <a href="mailto:c2nguyendu.baria.bariavungtau@moet.edu.vn" className="text-gray-300 hover:text-orange-300 transition-colors duration-300 break-all">c2nguyendu.baria.bariavungtau@moet.edu.vn</a>
                 </li>
               </ul>
             </div>
 
             <div className="mb-[1.2em]">
-              <h3 className="font-display text-lg font-semibold mb-6 text-indigo-300">Nhận tin tức</h3>
+              <h3 className="font-display text-lg font-semibold mb-6 text-orange-300">Nhận tin tức</h3>
               <p className="text-gray-300 text-sm mb-4 font-body">Đăng ký để nhận thông tin mới nhất về hướng nghiệp và tuyển sinh.</p>
               <form className="flex flex-col gap-3" onSubmit={(e) => e.preventDefault()}>
                 <input
                   type="email"
                   placeholder="Email của bạn"
-                  className="px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-300 font-body"
+                  className="px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all duration-300 font-body"
                   required
                 />
                 <button
                   type="submit"
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-indigo-500/30 font-body"
+                  className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-3 rounded-lg font-medium transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-orange-500/30 font-body"
                 >
                   Đăng ký
                 </button>
@@ -724,7 +724,7 @@ export default function Layout({ children, currentPageName }) {
               </p>
               
               <nav aria-label="Legal links" className="flex flex-wrap justify-center gap-4 md:gap-6 text-sm font-body">
-                <Link to={createPageUrl("Sitemap")} className="text-gray-400 hover:text-indigo-300 transition-colors duration-300">
+                <Link to={createPageUrl("Sitemap")} className="text-gray-400 hover:text-orange-300 transition-colors duration-300">
                   Sơ đồ trang
                 </Link>
                 
@@ -737,11 +737,11 @@ export default function Layout({ children, currentPageName }) {
                   </Link>
                 )}
                 
-                <Link to={createPageUrl("Privacy")} className="text-gray-400 hover:text-indigo-300 transition-colors duration-300">
+                <Link to={createPageUrl("Privacy")} className="text-gray-400 hover:text-orange-300 transition-colors duration-300">
                   Chính sách
                 </Link>
                 
-                <Link to={createPageUrl("Terms")} className="text-gray-400 hover:text-indigo-300 transition-colors duration-300">
+                <Link to={createPageUrl("Terms")} className="text-gray-400 hover:text-orange-300 transition-colors duration-300">
                   Điều khoản
                 </Link>
               </nav>

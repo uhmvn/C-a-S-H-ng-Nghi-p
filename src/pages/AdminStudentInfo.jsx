@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -32,7 +31,6 @@ export default function AdminStudentInfo() {
     initialData: []
   });
 
-  // ✅ Fetch User accounts for full_name sync
   const { data: users = [] } = useQuery({
     queryKey: ['users'],
     queryFn: async () => {
@@ -56,36 +54,51 @@ export default function AdminStudentInfo() {
     }
   }, [studentIdFromUrl, students, selectedStudent]);
 
-  // ✅ ENHANCED: Update both User AND UserProfile
+  // ✅ CRITICAL FIX: Reset formData when selectedStudent changes
+  useEffect(() => {
+    if (selectedStudent && !isEditing) {
+      const user = (users || []).find(u => u && u.id === selectedStudent.user_id);
+      setFormData({
+        ...selectedStudent,
+        full_name: user?.full_name || ''
+      });
+    }
+  }, [selectedStudent, users, isEditing]);
+
+  // ✅ Update mutation with proper data structure
   const updateMutation = useMutation({
     mutationFn: async ({ profileData, fullName, avatarUrl }) => {
+      console.log('💾 Saving data:', { profileData, fullName, avatarUrl });
+      
       // Update User.full_name if changed
       if (fullName && selectedStudent.user_id) {
+        console.log('Updating User.full_name:', fullName);
         await base44.entities.User.update(selectedStudent.user_id, {
           full_name: fullName
         });
       }
       
-      // Update UserProfile
-      return await base44.entities.UserProfile.update(selectedStudent.id, {
-        ...profileData,
-        avatar_url: avatarUrl // Use the new avatarUrl if provided, otherwise keep existing from profileData
-      });
+      // Update UserProfile with avatar
+      const updateData = { ...profileData };
+      if (avatarUrl) {
+        updateData.avatar_url = avatarUrl;
+      }
+      
+      console.log('Updating UserProfile:', updateData);
+      return await base44.entities.UserProfile.update(selectedStudent.id, updateData);
     },
-    onSuccess: () => {
+    onSuccess: (updatedProfile) => {
+      console.log('✅ Update successful:', updatedProfile);
       queryClient.invalidateQueries({ queryKey: ['students-info'] });
       queryClient.invalidateQueries({ queryKey: ['users'] });
       toast.success('✅ Đã cập nhật thông tin!');
       setIsEditing(false);
-      setAvatarFile(null); // Reset avatar file after successful upload/update
-      setTimeout(async () => {
-        const updated = await base44.entities.UserProfile.filter({ id: selectedStudent.id });
-        if (updated && updated.length > 0) {
-          setSelectedStudent(updated[0]);
-        }
-      }, 500);
+      setAvatarFile(null);
+      // ✅ CRITICAL: Update selectedStudent immediately with new data
+      setSelectedStudent(updatedProfile);
     },
     onError: (error) => {
+      console.error('❌ Update error:', error);
       toast.error(`Lỗi: ${error.message}`);
     }
   });
@@ -102,17 +115,21 @@ export default function AdminStudentInfo() {
   });
 
   const handleEdit = (student) => {
-    setSelectedStudent(student);
     const user = (users || []).find(u => u && u.id === student.user_id);
+    setSelectedStudent(student);
     setFormData({
       ...student,
       full_name: user?.full_name || ''
     });
     setIsEditing(true);
+    setAvatarFile(null);
   };
 
   const handleSave = async () => {
     try {
+      console.log('🔄 Starting save process...');
+      console.log('Form data:', formData);
+      
       let avatarUrl = selectedStudent.avatar_url;
       
       // Upload avatar if changed
@@ -123,7 +140,11 @@ export default function AdminStudentInfo() {
         toast.success('Tải ảnh thành công!', { id: 'avatar' });
       }
       
-      const { full_name, ...profileData } = formData;
+      // ✅ CRITICAL FIX: Separate full_name from profile data
+      const { full_name, user_id, id, created_date, updated_date, created_by, ...profileData } = formData;
+      
+      console.log('Profile data to save:', profileData);
+      console.log('Full name to save:', full_name);
       
       updateMutation.mutate({
         profileData,
@@ -131,6 +152,7 @@ export default function AdminStudentInfo() {
         avatarUrl
       });
     } catch (error) {
+      console.error('❌ Save error:', error);
       toast.error(`Lỗi: ${error.message}`);
     }
   };
@@ -210,7 +232,10 @@ export default function AdminStudentInfo() {
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: idx * 0.02 }}
-                        onClick={() => setSelectedStudent(student)}
+                        onClick={() => {
+                          setSelectedStudent(student);
+                          setIsEditing(false);
+                        }}
                         className={`p-4 rounded-xl cursor-pointer transition-all ${
                           isSelected 
                             ? 'bg-indigo-50 border-2 border-indigo-600' 
@@ -263,10 +288,10 @@ export default function AdminStudentInfo() {
                     <div className="flex items-center gap-4">
                       {/* Avatar */}
                       <div className="relative">
-                        {(avatarFile && URL.createObjectURL(avatarFile)) ? (
+                        {avatarFile ? (
                           <img
                             src={URL.createObjectURL(avatarFile)}
-                            alt="Avatar Preview"
+                            alt="Preview"
                             className="w-20 h-20 rounded-full object-cover border-4 border-indigo-100"
                           />
                         ) : selectedStudent.avatar_url ? (
@@ -315,7 +340,11 @@ export default function AdminStudentInfo() {
                           <button
                             onClick={() => {
                               setIsEditing(false);
-                              setFormData({});
+                              const user = (users || []).find(u => u && u.id === selectedStudent.user_id);
+                              setFormData({
+                                ...selectedStudent,
+                                full_name: user?.full_name || ''
+                              });
                               setAvatarFile(null);
                             }}
                             className="flex items-center gap-2 border-2 border-gray-300 px-4 py-2 rounded-xl hover:bg-gray-50"
