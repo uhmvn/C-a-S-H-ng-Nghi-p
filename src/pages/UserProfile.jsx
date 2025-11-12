@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import {
   User, Mail, School, Calendar, Target, CheckCircle, Clock, FileText, AlertCircle,
   Award, TrendingUp, Plus, BookOpen, Brain, ExternalLink, Lightbulb, MessageCircle, X,
-  Download, Zap, Activity, BarChart3, ArrowRight, Users // Added Users icon
+  Download, Zap, Activity, BarChart3, ArrowRight, Users, Edit, Camera, Save
 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -29,6 +29,15 @@ function UserProfileContent() {
   const [error, setError] = useState(null);
   const [userPermissions, setUserPermissions] = useState([]);
   const [showAddScoreModal, setShowAddScoreModal] = useState(false);
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [editForm, setEditForm] = useState({
+    full_name: '',
+    phone: '',
+    date_of_birth: '',
+    address: '',
+    bio: ''
+  });
+  const [avatarFile, setAvatarFile] = useState(null);
   const [scoreForm, setScoreForm] = useState({
     academic_year_id: '',
     semester: 1,
@@ -45,26 +54,35 @@ function UserProfileContent() {
     queryKey: ['academicYears'],
     queryFn: async () => {
       const years = await base44.entities.AcademicYear.filter({ is_active: true }, '-year_code');
-      console.log('📅 Academic years loaded:', years?.length || 0);
       return years || [];
     },
     initialData: []
   });
 
-  // ✅ Fetch Subjects
+  // ✅ FIX: Fetch Subjects WITHOUT duplicates
   const { data: subjects = [] } = useQuery({
     queryKey: ['subjects', profileData?.grade_level],
     queryFn: async () => {
       const allSubjects = await base44.entities.Subject.filter({ is_active: true }, 'order');
-      console.log('📚 Subjects loaded:', allSubjects?.length || 0);
+      
+      let filteredSubjects = allSubjects || [];
 
       if (profileData?.grade_level) {
         const gradeNum = parseInt(profileData.grade_level);
         const level = gradeNum >= 10 ? 'high_school' : 'middle_school';
-        return (allSubjects || []).filter(s => s.level === level || s.level === 'both');
+        filteredSubjects = (allSubjects || []).filter(s => s.level === level || s.level === 'both');
       }
 
-      return allSubjects || [];
+      // ✅ Remove duplicates by subject_code
+      const uniqueSubjects = filteredSubjects.reduce((acc, current) => {
+        const existing = acc.find(item => item.subject_code === current.subject_code);
+        if (!existing) {
+          acc.push(current);
+        }
+        return acc;
+      }, []);
+      
+      return uniqueSubjects;
     },
     enabled: !!profileData,
     initialData: []
@@ -78,6 +96,12 @@ function UserProfileContent() {
 
         if (user) {
           setCurrentUser(user);
+          
+          // ✅ Initialize edit form with user data
+          setEditForm(prev => ({
+            ...prev,
+            full_name: user.full_name || ''
+          }));
 
           if (user.role !== 'admin') {
             try {
@@ -136,9 +160,20 @@ function UserProfileContent() {
 
   useEffect(() => {
     if (profiles && profiles.length > 0) {
-      setProfileData(profiles[0]);
+      const profile = profiles[0];
+      setProfileData(profile);
+      
+      // ✅ Populate edit form with profile data
+      setEditForm(prev => ({
+        ...prev,
+        full_name: currentUser?.full_name || profile.full_name || '',
+        phone: profile.phone || '',
+        date_of_birth: profile.date_of_birth || '',
+        address: profile.address || '',
+        bio: profile.bio || ''
+      }));
     }
-  }, [profiles]);
+  }, [profiles, currentUser]);
 
   const { data: testResults = [] } = useQuery({
     queryKey: ['testResults', currentUser?.id],
@@ -158,17 +193,11 @@ function UserProfileContent() {
     queryKey: ['academicScores', currentUser?.id],
     queryFn: async () => {
       if (!currentUser?.id) {
-        console.log('⚠️ No user ID for academic scores');
         return [];
       }
       
       try {
-        console.log('🔍 Fetching academic scores for user_id:', currentUser.id);
         const scores = await base44.entities.AcademicScore.filter({ user_id: currentUser.id });
-        console.log('✅ Academic scores loaded:', scores?.length || 0);
-        if (scores && scores.length > 0) {
-          console.log('Sample score:', scores[0]);
-        }
         return scores || [];
       } catch (error) {
         console.error('❌ Error fetching academic scores:', error);
@@ -207,10 +236,71 @@ function UserProfileContent() {
     initialData: [],
   });
 
+  // ✅ NEW: Update Profile Mutation
+  const updateProfileMutation = useMutation({
+    mutationFn: async (formData) => {
+      let avatarUrl = profileData?.avatar_url;
+      
+      // Upload avatar if file selected
+      if (avatarFile) {
+        const { file_url } = await base44.integrations.Core.UploadFile({ file: avatarFile });
+        avatarUrl = file_url;
+      }
+      
+      // Update User full_name
+      await base44.auth.updateMe({ full_name: formData.full_name });
+      
+      // Update UserProfile
+      if (profileData?.id) {
+        return await base44.entities.UserProfile.update(profileData.id, {
+          phone: formData.phone,
+          date_of_birth: formData.date_of_birth,
+          address: formData.address,
+          bio: formData.bio,
+          avatar_url: avatarUrl
+        });
+      }
+      return null; // Should not happen if profileData.id exists
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+      toast.success('✅ Đã cập nhật hồ sơ!');
+      setShowEditProfileModal(false);
+      setAvatarFile(null);
+      // Refresh user data to get updated full_name
+      base44.auth.me().then(user => setCurrentUser(user));
+    },
+    onError: (error) => {
+      toast.error(`Lỗi: ${error.message}`);
+    }
+  });
+
+  // ✅ ENHANCED: Validate score inputs
+  const validateScore = (value) => {
+    if (value === '') return true; // Allow empty for incomplete input
+    const num = parseFloat(value);
+    return !isNaN(num) && num >= 0 && num <= 10;
+  };
+
+  const handleScoreChange = (field, value) => {
+    // ✅ Validate on change
+    if (value !== '' && !validateScore(value)) {
+      toast.error('Điểm phải từ 0.0 đến 10.0');
+      return;
+    }
+    setScoreForm(prev => ({ ...prev, [field]: value }));
+  };
+
   useEffect(() => {
     if (scoreForm.midterm_score !== '' && scoreForm.final_score !== '') {
       const midterm = parseFloat(scoreForm.midterm_score);
       const final = parseFloat(scoreForm.final_score);
+      
+      // ✅ Validate range
+      if (!validateScore(scoreForm.midterm_score) || !validateScore(scoreForm.final_score)) {
+        return;
+      }
+      
       if (!isNaN(midterm) && !isNaN(final)) {
         const avg = (midterm + final) / 2;
         const classification = avg >= 8.0 ? 'excellent' : avg >= 6.5 ? 'good' : avg >= 5.0 ? 'average' : 'weak';
@@ -219,8 +309,6 @@ function UserProfileContent() {
           average_score: avg.toFixed(1),
           classification: classification
         }));
-      } else {
-        setScoreForm(prev => ({ ...prev, average_score: '', classification: 'average' }));
       }
     } else {
       setScoreForm(prev => ({ ...prev, average_score: '', classification: 'average' }));
@@ -384,20 +472,32 @@ function UserProfileContent() {
     return actions.slice(0, 4);
   }, [testResults, studentJourney, counselingSessions, academicScores]);
 
+  // ✅ ENHANCED: Add Score with Validation
   const addScoreMutation = useMutation({
     mutationFn: async (scoreData) => {
-      console.log('📝 Adding score for user:', currentUser.id, 'profile:', profileData?.id);
-      console.log('Score data:', scoreData);
+      // ✅ Final validation before submit
+      const midterm = parseFloat(scoreData.midterm_score);
+      const final = parseFloat(scoreData.final_score);
+      
+      if (isNaN(midterm) || isNaN(final)) {
+        throw new Error('Điểm phải là số hợp lệ');
+      }
+      
+      if (midterm < 0 || midterm > 10 || final < 0 || final > 10) {
+        throw new Error('Điểm phải từ 0.0 đến 10.0');
+      }
       
       return await base44.entities.AcademicScore.create({
         student_id: profileData.id,
         user_id: currentUser.id, // ✅ ADD user_id for easier queries
         ...scoreData,
+        midterm_score: midterm,
+        final_score: final,
+        average_score: parseFloat(scoreData.average_score),
         updated_at: new Date().toISOString()
       });
     },
     onSuccess: (newScore) => {
-      console.log('✅ Score added successfully:', newScore);
       queryClient.invalidateQueries({ queryKey: ['academicScores'] });
       queryClient.invalidateQueries({ queryKey: ['scores-academic'] });
       toast.success('✅ Đã thêm điểm thành công!');
@@ -422,7 +522,6 @@ function UserProfileContent() {
 
   const deleteScoreMutation = useMutation({
     mutationFn: async (scoreId) => {
-      console.log('🗑️ Deleting score:', scoreId);
       return await base44.entities.AcademicScore.delete(scoreId);
     },
     onSuccess: () => {
@@ -514,8 +613,26 @@ function UserProfileContent() {
           {/* Sidebar */}
           <div className="lg:col-span-1 space-y-6">
             <div className="bg-white rounded-3xl p-8 shadow-lg text-center">
-              <div className="w-32 h-32 mx-auto mb-6 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full flex items-center justify-center">
-                <User className="w-16 h-16 text-indigo-600" />
+              {/* ✅ Avatar with Upload */}
+              <div className="relative w-32 h-32 mx-auto mb-6">
+                {profileData?.avatar_url ? (
+                  <img
+                    src={profileData.avatar_url}
+                    alt={displayFullName}
+                    className="w-full h-full rounded-full object-cover border-4 border-indigo-100"
+                  />
+                ) : (
+                  <div className="w-full h-full bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full flex items-center justify-center border-4 border-indigo-100">
+                    <User className="w-16 h-16 text-indigo-600" />
+                  </div>
+                )}
+                <button
+                  onClick={() => setShowEditProfileModal(true)}
+                  className="absolute bottom-0 right-0 w-10 h-10 bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-indigo-700 transition-colors"
+                  title="Chỉnh sửa hồ sơ"
+                >
+                  <Edit className="w-5 h-5" />
+                </button>
               </div>
 
               <h2 className="text-2xl font-bold text-gray-900 mb-2">{displayFullName}</h2>
@@ -546,6 +663,14 @@ function UserProfileContent() {
                   </div>
                 )}
               </div>
+              
+              <button
+                onClick={() => setShowEditProfileModal(true)}
+                className="mt-6 w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 rounded-xl font-medium hover:from-purple-600 hover:to-indigo-600 transition-all flex items-center justify-center gap-2"
+              >
+                <Edit className="w-5 h-5" />
+                Chỉnh sửa hồ sơ
+              </button>
             </div>
 
             {/* Quick Stats */}
@@ -1177,6 +1302,157 @@ function UserProfileContent() {
         </div>
       </div>
 
+      {/* ✅ NEW: Edit Profile Modal */}
+      {showEditProfileModal && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          onClick={() => setShowEditProfileModal(false)}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto"
+          >
+            <div className="flex items-center justify-between mb-6 border-b pb-4">
+              <h3 className="text-2xl font-bold flex items-center gap-2">
+                <Edit className="w-6 h-6 text-indigo-600" />
+                Chỉnh Sửa Hồ Sơ
+              </h3>
+              <button onClick={() => setShowEditProfileModal(false)}>
+                <X className="w-6 h-6 text-gray-400 hover:text-gray-600" />
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              {/* Avatar Upload */}
+              <div className="text-center">
+                <label className="block text-sm font-medium mb-2">Ảnh đại diện</label>
+                <div className="relative inline-block">
+                  {avatarFile ? (
+                    <img
+                      src={URL.createObjectURL(avatarFile)}
+                      alt="Preview"
+                      className="w-32 h-32 rounded-full object-cover border-4 border-indigo-100"
+                    />
+                  ) : profileData?.avatar_url ? (
+                    <img
+                      src={profileData.avatar_url}
+                      alt={displayFullName}
+                      className="w-32 h-32 rounded-full object-cover border-4 border-indigo-100"
+                    />
+                  ) : (
+                    <div className="w-32 h-32 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full flex items-center justify-center border-4 border-indigo-100">
+                      <User className="w-16 h-16 text-indigo-600" />
+                    </div>
+                  )}
+                  <label className="absolute bottom-0 right-0 w-10 h-10 bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-lg cursor-pointer hover:bg-indigo-700 transition-colors">
+                    <Camera className="w-5 h-5" />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => setAvatarFile(e.target.files[0])}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+                {avatarFile && (
+                  <button
+                    onClick={() => setAvatarFile(null)}
+                    className="mt-2 text-sm text-red-600 hover:text-red-700"
+                  >
+                    Hủy ảnh
+                  </button>
+                )}
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Họ và tên *</label>
+                  <input
+                    type="text"
+                    value={editForm.full_name}
+                    onChange={(e) => setEditForm({...editForm, full_name: e.target.value})}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-600 focus:outline-none"
+                    placeholder="Nguyễn Văn A"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-2">Số điện thoại</label>
+                  <input
+                    type="tel"
+                    value={editForm.phone}
+                    onChange={(e) => setEditForm({...editForm, phone: e.target.value})}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-600 focus:outline-none"
+                    placeholder="0123456789"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-2">Ngày sinh</label>
+                  <input
+                    type="date"
+                    value={editForm.date_of_birth}
+                    onChange={(e) => setEditForm({...editForm, date_of_birth: e.target.value})}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-600 focus:outline-none"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-2">Địa chỉ</label>
+                  <input
+                    type="text"
+                    value={editForm.address}
+                    onChange={(e) => setEditForm({...editForm, address: e.target.value})}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-600 focus:outline-none"
+                    placeholder="Số nhà, đường, phường/xã"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Giới thiệu bản thân</label>
+                <textarea
+                  value={editForm.bio}
+                  onChange={(e) => setEditForm({...editForm, bio: e.target.value})}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-600 focus:outline-none"
+                  rows="4"
+                  placeholder="Viết vài dòng về bạn..."
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6 pt-6 border-t">
+              <button
+                onClick={() => setShowEditProfileModal(false)}
+                className="flex-1 border-2 border-gray-300 text-gray-700 py-3 rounded-xl hover:bg-gray-50 font-medium transition-colors"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                onClick={() => updateProfileMutation.mutate(editForm)}
+                disabled={updateProfileMutation.isPending || !editForm.full_name}
+                className="flex-1 bg-indigo-600 text-white py-3 rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors shadow-md flex items-center justify-center gap-2"
+              >
+                {updateProfileMutation.isPending ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Đang lưu...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-5 h-5" />
+                    Lưu thay đổi
+                  </>
+                )}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* ✅ ENHANCED: Add Score Modal with Validation */}
       {showAddScoreModal && (
         <div
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
@@ -1264,7 +1540,7 @@ function UserProfileContent() {
               </div>
 
               <div className="bg-indigo-50 rounded-xl p-4 border-2 border-indigo-200">
-                <p className="text-sm font-medium mb-3 text-gray-700">Nhập điểm:</p>
+                <p className="text-sm font-medium mb-3 text-gray-700">Nhập điểm (0.0 - 10.0):</p>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-medium mb-1 text-gray-600">Điểm giữa kỳ *</label>
@@ -1274,7 +1550,7 @@ function UserProfileContent() {
                       min="0"
                       max="10"
                       value={scoreForm.midterm_score}
-                      onChange={(e) => setScoreForm({...scoreForm, midterm_score: e.target.value})}
+                      onChange={(e) => handleScoreChange('midterm_score', e.target.value)}
                       placeholder="0.0 - 10.0"
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:border-blue-600 focus:outline-none text-center font-bold text-lg"
                     />
@@ -1287,12 +1563,15 @@ function UserProfileContent() {
                       min="0"
                       max="10"
                       value={scoreForm.final_score}
-                      onChange={(e) => setScoreForm({...scoreForm, final_score: e.target.value})}
+                      onChange={(e) => handleScoreChange('final_score', e.target.value)}
                       placeholder="0.0 - 10.0"
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:border-purple-600 focus:outline-none text-center font-bold text-lg"
                     />
                   </div>
                 </div>
+                <p className="text-xs text-gray-600 mt-2 text-center">
+                  ⚠️ Điểm phải từ 0.0 đến 10.0
+                </p>
               </div>
 
               {scoreForm.average_score && (
@@ -1324,7 +1603,15 @@ function UserProfileContent() {
               </button>
               <button
                 onClick={() => addScoreMutation.mutate(scoreForm)}
-                disabled={addScoreMutation.isPending || !scoreForm.subject_code || !scoreForm.academic_year_id || scoreForm.midterm_score === '' || scoreForm.final_score === ''}
+                disabled={
+                  addScoreMutation.isPending || 
+                  !scoreForm.subject_code || 
+                  !scoreForm.academic_year_id || 
+                  scoreForm.midterm_score === '' || 
+                  scoreForm.final_score === '' ||
+                  !validateScore(scoreForm.midterm_score) ||
+                  !validateScore(scoreForm.final_score)
+                }
                 className="flex-1 bg-indigo-600 text-white py-3 rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors shadow-md flex items-center justify-center gap-2"
               >
                 {addScoreMutation.isPending ? (
