@@ -254,33 +254,12 @@ export default function Layout({ children, currentPageName }) {
           --font-body: 'Inter', sans-serif;
           --color-primary: #4F46E5;
           --color-secondary: #9333EA;
-          --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-          --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-          --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
         }
 
-        .font-display {
-          font-family: var(--font-display);
-        }
-
-        .font-body {
-          font-family: var(--font-body);
-        }
-
-        .glass-nav {
-          background: rgba(255, 255, 255, 0.85);
-          backdrop-filter: blur(12px);
-          box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
-          border-bottom: 1px solid rgba(255, 255, 255, 0.18);
-        }
-
-        .nav-transition {
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .text-shadow-dark {
-          text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-        }
+        .font-display { font-family: var(--font-display); }
+        .font-body { font-family: var(--font-body); }
+        .glass-nav { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(12px); }
+        .text-shadow-dark { text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); }
       `}</style>
 
       <SeoSchema />
@@ -295,14 +274,9 @@ export default function Layout({ children, currentPageName }) {
                 </svg>
               </div>
               <div className="ml-3">
-                <p className="text-sm text-yellow-700">
-                  Không thể kết nối. Vui lòng kiểm tra kết nối mạng.
-                </p>
+                <p className="text-sm text-yellow-700">Không thể kết nối. Vui lòng kiểm tra kết nối mạng.</p>
               </div>
-              <button
-                onClick={() => setAuthError(false)}
-                className="ml-auto flex-shrink-0"
-              >
+              <button onClick={() => setAuthError(false)} className="ml-auto">
                 <X className="h-5 w-5 text-yellow-400" />
               </button>
             </div>
@@ -311,8 +285,8 @@ export default function Layout({ children, currentPageName }) {
       )}
 
       <nav 
-        className={`fixed top-0 left-0 right-0 z-50 nav-transition ${
-          isScrolled || isMenuOpen ? 'glass-nav py-3' : 'bg-transparent py-4'
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+          isScrolled || isMenuOpen ? 'glass-nav py-3 shadow-md' : 'bg-transparent py-4'
         }`}
         role="navigation"
         aria-label="Main navigation"
@@ -346,10 +320,10 @@ export default function Layout({ children, currentPageName }) {
                     <>
                       <button
                         onClick={() => setShowServicesDropdown(!showServicesDropdown)}
-                        className={`text-sm font-medium transition-all duration-300 hover:text-orange-600 relative group font-body flex items-center gap-1 ${
+                        className={`text-sm font-medium transition-all duration-300 hover:text-orange-600 flex items-center gap-1 font-body ${
                           location.pathname.includes('Services') || location.pathname.includes('CareerSurveyGame')
-                            ? 'text-orange-600' 
-                            : (isScrolled || isMenuOpen ? 'text-orange-700' : 'text-white text-shadow-dark')
+                            ? 'text-orange-600 font-semibold' 
+                            : (isScrolled || isMenuOpen ? 'text-gray-900 hover:text-orange-600' : 'text-white text-shadow-dark hover:text-orange-200')
                         }`}
                         aria-expanded={showServicesDropdown}
                         aria-haspopup="true"
@@ -358,13 +332,13 @@ export default function Layout({ children, currentPageName }) {
                         <ChevronDown className="w-4 h-4" />
                       </button>
                       {showServicesDropdown && (
-                        <div className="absolute top-full left-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-gray-200 py-2 z-50" role="menu" aria-orientation="vertical" tabIndex={-1}>
+                        <div className="absolute top-full left-0 mt-2 w-64 bg-white rounded-xl shadow-xl border py-2 z-50" role="menu" aria-orientation="vertical" tabIndex={-1}>
                           {item.dropdownItems.map((dropItem) => (
                             <Link
                               key={dropItem.name}
                               to={dropItem.url}
                               onClick={() => setShowServicesDropdown(false)}
-                              className="block px-4 py-2 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-600 transition-colors"
+                              className="block px-4 py-2 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-600"
                               role="menuitem"
                               tabIndex={0}
                             >
@@ -380,8 +354,8 @@ export default function Layout({ children, currentPageName }) {
                       role="menuitem"
                       className={`text-sm font-medium transition-all duration-300 hover:text-orange-600 relative group font-body ${
                         location.pathname === item.url 
-                          ? 'text-orange-600' 
-                          : (isScrolled || isMenuOpen ? 'text-orange-700' : 'text-white text-shadow-dark')
+                          ? 'text-orange-600 font-semibold' 
+                          : (isScrolled || isMenuOpen ? 'text-gray-900 hover:text-orange-600' : 'text-white text-shadow-dark hover:text-orange-200')
                       }`}
                       aria-current={location.pathname === item.url ? 'page' : undefined}
                     >
@@ -501,7 +475,7 @@ export default function Layout({ children, currentPageName }) {
                   onClick={handleLogin}
                   className={`hidden lg:flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-all duration-300 ${
                     isScrolled || isMenuOpen
-                      ? 'bg-white border-2 border-orange-600 text-orange-600 hover:bg-orange-600 hover:text-white'
+                      ? 'bg-white border-2 border-orange-600 text-orange-600 hover:bg-orange-600 hover:text-white shadow-sm'
                       : 'bg-white/20 backdrop-blur-sm text-white border-2 border-white/30 hover:bg-white hover:text-orange-600'
                   }`}
                   aria-label="Login"
@@ -513,15 +487,17 @@ export default function Layout({ children, currentPageName }) {
 
               <button
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className="lg:hidden p-2 rounded-lg transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2"
+                className={`lg:hidden p-2 rounded-lg transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 ${
+                  isScrolled || isMenuOpen ? 'text-gray-900' : 'text-white'
+                }`}
                 aria-label={isMenuOpen ? "Close menu" : "Open menu"}
                 aria-expanded={isMenuOpen}
                 aria-controls="mobile-menu"
               >
                 {isMenuOpen ? (
-                  <X className={`w-6 h-6 ${isScrolled || isMenuOpen ? 'text-gray-900' : 'text-white'}`} />
+                  <X className="w-6 h-6" />
                 ) : (
-                  <Menu className={`w-6 h-6 ${isScrolled || isMenuOpen ? 'text-gray-900' : 'text-white'}`} />
+                  <Menu className="w-6 h-6" />
                 )}
               </button>
             </div>
@@ -601,7 +577,7 @@ export default function Layout({ children, currentPageName }) {
                       key={dropItem.name}
                       to={dropItem.url}
                       onClick={() => setIsMenuOpen(false)}
-                      className="block text-xl font-medium transition-all duration-300 hover:text-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 rounded px-2 py-2 font-display text-gray-700"
+                      className="block text-xl font-medium py-2 px-2 rounded font-display text-gray-700 hover:text-orange-600"
                     >
                       {dropItem.name}
                     </Link>
@@ -612,10 +588,9 @@ export default function Layout({ children, currentPageName }) {
                   key={item.name}
                   to={item.url}
                   onClick={() => setIsMenuOpen(false)}
-                  className={`text-2xl font-medium transition-all duration-300 hover:text-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 rounded px-2 py-1 font-display ${
-                    location.pathname === item.url ? 'text-orange-600' : 'text-gray-800'
+                  className={`text-2xl font-medium py-1 px-2 rounded font-display ${
+                    location.pathname === item.url ? 'text-orange-600' : 'text-gray-800 hover:text-orange-600'
                   }`}
-                  aria-current={location.pathname === item.url ? 'page' : undefined}
                 >
                   {item.name}
                 </Link>
@@ -627,7 +602,7 @@ export default function Layout({ children, currentPageName }) {
                 setIsMenuOpen(false);
                 setIsBookingOpen(true);
               }}
-              className="mt-4 bg-gradient-to-r from-orange-600 to-red-600 text-white px-8 py-4 rounded-full font-medium hover:from-red-600 hover:to-orange-600 transition-all duration-300 shadow-lg font-body focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2"
+              className="mt-4 bg-gradient-to-r from-orange-600 to-red-600 text-white px-8 py-4 rounded-full font-medium hover:from-red-600 hover:to-orange-600 shadow-lg font-body focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2"
               aria-label="Đặt lịch tư vấn ngay"
             >
               Đặt Lịch Ngay
@@ -666,7 +641,7 @@ export default function Layout({ children, currentPageName }) {
                 </span>
               </Link>
               <p className="text-gray-300 text-sm leading-relaxed mb-6 font-body">
-                {getSetting('company_description', 'Nền tảng hướng nghiệp thông minh dành cho học sinh THCS & THPT. Chúng tôi giúp bạn hiểu bản thân, chọn nghề đúng, và định hướng tương lai một cách khoa học.')}
+                {getSetting('company_description', 'Nền tảng hướng nghiệp thông minh dành cho học sinh THCS & THPT')}
               </p>
               <div className="flex gap-4 justify-center md:justify-start">
                 <a 
@@ -694,11 +669,11 @@ export default function Layout({ children, currentPageName }) {
               <h3 className="font-display text-lg font-semibold mb-6 text-orange-300">Dịch vụ</h3>
               <nav aria-label="Services navigation">
                 <ul className="space-y-3 text-sm font-body">
-                  <li><Link to={createPageUrl("Services?category=assessment")} className="text-gray-300 hover:text-orange-300 transition-colors duration-300">Trắc nghiệm nghề nghiệp</Link></li>
-                  <li><Link to={createPageUrl("Services?category=career_counseling")} className="text-gray-300 hover:text-orange-300 transition-colors duration-300">Tư vấn định hướng</Link></li>
-                  <li><Link to={createPageUrl("Services?category=ai_analysis")} className="text-gray-300 hover:text-orange-300 transition-colors duration-300">Phân tích năng lực</Link></li>
-                  <li><Link to={createPageUrl("SubjectCombinations")} className="text-gray-300 hover:text-orange-300 transition-colors duration-300">Tổ hợp môn thi</Link></li>
-                  <li><Link to={createPageUrl("Schools")} className="text-gray-300 hover:text-orange-300 transition-colors duration-300">Tư vấn chọn trường</Link></li>
+                  <li><Link to={createPageUrl("Services?category=assessment")} className="text-gray-300 hover:text-orange-300 transition-colors">Trắc nghiệm nghề nghiệp</Link></li>
+                  <li><Link to={createPageUrl("Services?category=career_counseling")} className="text-gray-300 hover:text-orange-300 transition-colors">Tư vấn định hướng</Link></li>
+                  <li><Link to={createPageUrl("Services?category=ai_analysis")} className="text-gray-300 hover:text-orange-300 transition-colors">Phân tích năng lực</Link></li>
+                  <li><Link to={createPageUrl("SubjectCombinations")} className="text-gray-300 hover:text-orange-300 transition-colors">Tổ hợp môn thi</Link></li>
+                  <li><Link to={createPageUrl("Schools")} className="text-gray-300 hover:text-orange-300 transition-colors">Tư vấn chọn trường</Link></li>
                 </ul>
               </nav>
             </div>
@@ -708,18 +683,18 @@ export default function Layout({ children, currentPageName }) {
               <ul className="space-y-3 text-sm font-body">
                 <li className="flex items-start gap-3">
                   <MapPin className="w-5 h-5 text-orange-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-300">{getSetting('contact_address', '523, Phạm Hùng, Phường Bà Ria, TP Bà Ria, Bà Rịa - Vũng Tàu')}</span>
+                  <span className="text-gray-300">{getSetting('contact_address', '523, Phạm Hùng, Phường Bà Ria, TP Bà Ria')}</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <Phone className="w-5 h-5 text-orange-400 flex-shrink-0" />
-                  <a href={`tel:${getSetting('contact_phone', '(0254) 3 826 178').replace(/\s/g, '')}`} className="text-gray-300 hover:text-orange-300 transition-colors duration-300">
+                  <a href={`tel:${getSetting('contact_phone', '02543826178').replace(/\s/g, '')}`} className="text-gray-300 hover:text-orange-300 transition-colors">
                     {getSetting('contact_phone', '(0254) 3 826 178')}
                   </a>
                 </li>
                 <li className="flex items-center gap-3">
                   <Mail className="w-5 h-5 text-orange-400 flex-shrink-0" />
-                  <a href={`mailto:${getSetting('contact_email', 'c2nguyendu.baria.bariavungtau@moet.edu.vn')}`} className="text-gray-300 hover:text-orange-300 transition-colors duration-300 break-all">
-                    {getSetting('contact_email', 'c2nguyendu.baria.bariavungtau@moet.edu.vn')}
+                  <a href={`mailto:${getSetting('contact_email', 'contact@example.com')}`} className="text-gray-300 hover:text-orange-300 transition-colors break-all">
+                    {getSetting('contact_email', 'contact@example.com')}
                   </a>
                 </li>
               </ul>
@@ -727,17 +702,17 @@ export default function Layout({ children, currentPageName }) {
 
             <div className="mb-[1.2em]">
               <h3 className="font-display text-lg font-semibold mb-6 text-orange-300">Nhận tin tức</h3>
-              <p className="text-gray-300 text-sm mb-4 font-body">Đăng ký để nhận thông tin mới nhất về hướng nghiệp và tuyển sinh.</p>
+              <p className="text-gray-300 text-sm mb-4 font-body">Đăng ký để nhận thông tin mới nhất.</p>
               <form className="flex flex-col gap-3" onSubmit={(e) => e.preventDefault()}>
                 <input
                   type="email"
                   placeholder="Email của bạn"
-                  className="px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all duration-300 font-body"
+                  className="px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-400"
                   required
                 />
                 <button
                   type="submit"
-                  className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-3 rounded-lg font-medium transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-orange-500/30 font-body"
+                  className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-3 rounded-lg font-medium transition-all"
                 >
                   Đăng ký
                 </button>
@@ -752,24 +727,24 @@ export default function Layout({ children, currentPageName }) {
               </p>
               
               <nav aria-label="Legal links" className="flex flex-wrap justify-center gap-4 md:gap-6 text-sm font-body">
-                <Link to={createPageUrl("Sitemap")} className="text-gray-400 hover:text-orange-300 transition-colors duration-300">
+                <Link to={createPageUrl("Sitemap")} className="text-gray-400 hover:text-orange-300 transition-colors">
                   Sơ đồ trang
                 </Link>
                 
                 {isAdmin && (
                   <Link 
                     to={createPageUrl("AdminDashboard")}
-                    className="text-yellow-400 hover:text-yellow-300 transition-colors duration-300 font-bold flex items-center gap-1"
+                    className="text-yellow-400 hover:text-yellow-300 font-bold"
                   >
                     🔧 Admin Dashboard
                   </Link>
                 )}
                 
-                <Link to={createPageUrl("Privacy")} className="text-gray-400 hover:text-orange-300 transition-colors duration-300">
+                <Link to={createPageUrl("Privacy")} className="text-gray-400 hover:text-orange-300 transition-colors">
                   Chính sách
                 </Link>
                 
-                <Link to={createPageUrl("Terms")} className="text-gray-400 hover:text-orange-300 transition-colors duration-300">
+                <Link to={createPageUrl("Terms")} className="text-gray-400 hover:text-orange-300 transition-colors">
                   Điều khoản
                 </Link>
               </nav>
