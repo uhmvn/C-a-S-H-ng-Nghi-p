@@ -238,8 +238,6 @@ export default function Layout({ children, currentPageName }) {
     return <>{children}</>;
   }
 
-  const isAuthCheckingState = isAuthChecking.current;
-
   if (isLoading) {
     return <LoadingScreen onLoadingComplete={handleLoadingComplete} />;
   }
@@ -258,8 +256,31 @@ export default function Layout({ children, currentPageName }) {
 
         .font-display { font-family: var(--font-display); }
         .font-body { font-family: var(--font-body); }
-        .glass-nav { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(12px); }
-        .text-shadow-dark { text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); }
+        
+        /* ✅ IMPROVED: Solid white nav with subtle shadow */
+        .glass-nav { 
+          background: rgba(255, 255, 255, 0.98); 
+          backdrop-filter: blur(16px);
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+          border-bottom: 1px solid rgba(229, 231, 235, 0.8);
+        }
+        
+        .text-shadow-dark { text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5); }
+        
+        /* ✅ NEW: Ensure readable text on light backgrounds */
+        .nav-link-light {
+          color: #1F2937;
+          font-weight: 500;
+        }
+        
+        .nav-link-light:hover {
+          color: #EA580C;
+        }
+        
+        .nav-link-light.active {
+          color: #EA580C;
+          font-weight: 600;
+        }
       `}</style>
 
       <SeoSchema />
@@ -286,7 +307,7 @@ export default function Layout({ children, currentPageName }) {
 
       <nav 
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-          isScrolled || isMenuOpen ? 'glass-nav py-3 shadow-md' : 'bg-transparent py-4'
+          isScrolled || isMenuOpen ? 'glass-nav py-3' : 'bg-gradient-to-r from-indigo-600/95 to-purple-600/95 backdrop-blur-sm py-4 shadow-lg'
         }`}
         role="navigation"
         aria-label="Main navigation"
@@ -296,17 +317,17 @@ export default function Layout({ children, currentPageName }) {
             <Link to="/" className="flex items-center gap-3 group" aria-label={`${getSetting('company_name', 'CỬA SỔ NGHỀ NGHIỆP')} - Home`}>
               <div className="relative">
                 <Compass className={`w-10 h-10 transition-all duration-300 ${
-                  isScrolled || isMenuOpen ? 'text-orange-600' : 'text-white'
+                  isScrolled || isMenuOpen ? 'text-orange-600' : 'text-white drop-shadow-lg'
                 } group-hover:rotate-180`} />
               </div>
               <div className="flex flex-col">
                 <span className={`font-display text-xl font-bold transition-all duration-300 ${
-                  isScrolled || isMenuOpen ? 'text-gray-900' : 'text-white text-shadow-dark'
+                  isScrolled || isMenuOpen ? 'text-gray-900' : 'text-white drop-shadow-lg'
                 }`}>
                   {getSetting('company_name', 'CỬA SỔ NGHỀ NGHIỆP')}
                 </span>
                 <span className={`font-body text-xs tracking-wider transition-all duration-300 ${
-                  isScrolled || isMenuOpen ? 'text-gray-600' : 'text-white/80 text-shadow-dark'
+                  isScrolled || isMenuOpen ? 'text-gray-600' : 'text-white/90 drop-shadow-md'
                 }`}>
                   {getSetting('company_tagline', 'Career Guidance')}
                 </span>
@@ -320,10 +341,10 @@ export default function Layout({ children, currentPageName }) {
                     <>
                       <button
                         onClick={() => setShowServicesDropdown(!showServicesDropdown)}
-                        className={`text-sm font-medium transition-all duration-300 hover:text-orange-600 flex items-center gap-1 font-body ${
+                        className={`text-sm transition-all duration-300 flex items-center gap-1 font-body ${
                           location.pathname.includes('Services') || location.pathname.includes('CareerSurveyGame')
-                            ? 'text-orange-600 font-semibold' 
-                            : (isScrolled || isMenuOpen ? 'text-gray-900 hover:text-orange-600' : 'text-white text-shadow-dark hover:text-orange-200')
+                            ? (isScrolled || isMenuOpen ? 'text-orange-600 font-bold' : 'text-white font-bold drop-shadow-lg')
+                            : (isScrolled || isMenuOpen ? 'text-gray-800 font-medium hover:text-orange-600' : 'text-white font-medium drop-shadow-md hover:text-orange-200')
                         }`}
                         aria-expanded={showServicesDropdown}
                         aria-haspopup="true"
@@ -338,7 +359,7 @@ export default function Layout({ children, currentPageName }) {
                               key={dropItem.name}
                               to={dropItem.url}
                               onClick={() => setShowServicesDropdown(false)}
-                              className="block px-4 py-2 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-600"
+                              className="block px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-orange-50 hover:text-orange-600 transition-colors"
                               role="menuitem"
                               tabIndex={0}
                             >
@@ -352,15 +373,19 @@ export default function Layout({ children, currentPageName }) {
                     <Link
                       to={item.url}
                       role="menuitem"
-                      className={`text-sm font-medium transition-all duration-300 hover:text-orange-600 relative group font-body ${
+                      className={`text-sm transition-all duration-300 relative group font-body ${
                         location.pathname === item.url 
-                          ? 'text-orange-600 font-semibold' 
-                          : (isScrolled || isMenuOpen ? 'text-gray-900 hover:text-orange-600' : 'text-white text-shadow-dark hover:text-orange-200')
+                          ? (isScrolled || isMenuOpen ? 'text-orange-600 font-bold' : 'text-white font-bold drop-shadow-lg')
+                          : (isScrolled || isMenuOpen ? 'text-gray-800 font-medium hover:text-orange-600' : 'text-white font-medium drop-shadow-md hover:text-orange-200')
                       }`}
                       aria-current={location.pathname === item.url ? 'page' : undefined}
                     >
                       {item.name}
-                      <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-orange-600 transition-all duration-300 group-hover:w-full" aria-hidden="true" />
+                      {(isScrolled || isMenuOpen) && (
+                        <span className={`absolute -bottom-1 left-0 h-0.5 bg-orange-600 transition-all duration-300 ${
+                          location.pathname === item.url ? 'w-full' : 'w-0 group-hover:w-full'
+                        }`} aria-hidden="true" />
+                      )}
                     </Link>
                   )}
                 </div>
@@ -370,22 +395,22 @@ export default function Layout({ children, currentPageName }) {
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setIsBookingOpen(true)}
-                className="hidden lg:block bg-gradient-to-r from-orange-600 to-red-600 text-white px-5 py-2.5 rounded-full text-sm font-medium hover:from-red-600 hover:to-orange-600 transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-orange-500/30"
+                className="hidden lg:block bg-gradient-to-r from-orange-600 to-red-600 text-white px-5 py-2.5 rounded-full text-sm font-bold hover:from-red-600 hover:to-orange-600 transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-orange-500/50"
                 aria-label="Đặt lịch tư vấn ngay"
               >
                 Đặt Lịch
               </button>
 
-              {isAuthCheckingState ? (
+              {isAuthChecking.current ? (
                 <div className="hidden lg:block w-24 h-9 bg-gray-200 animate-pulse rounded-full" />
               ) : userRole ? (
                 <div className="hidden lg:block relative" ref={userMenuRef}>
                   <button
                     onClick={() => setShowUserMenu(!showUserMenu)}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-full transition-all duration-300 ${
+                    className={`flex items-center gap-2 px-3 py-2 rounded-full transition-all duration-300 shadow-sm ${
                       isScrolled || isMenuOpen 
-                        ? 'bg-gray-100 hover:bg-gray-200 text-gray-900' 
-                        : 'bg-white/20 hover:bg-white/30 text-white backdrop-blur-sm'
+                        ? 'bg-gray-100 hover:bg-gray-200 text-gray-900 border border-gray-200' 
+                        : 'bg-white/20 hover:bg-white/30 text-white backdrop-blur-md border border-white/30'
                     }`}
                     aria-label="User menu"
                     aria-expanded={showUserMenu}
@@ -421,24 +446,24 @@ export default function Layout({ children, currentPageName }) {
                         <Link
                           to={createPageUrl("UserProfile")}
                           onClick={() => setShowUserMenu(false)}
-                          className="flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-orange-50 transition-colors"
+                          className="flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-orange-50 hover:text-orange-600 transition-colors"
                           role="menuitem"
                           tabIndex={0}
                         >
                           <UserIcon className="w-4 h-4" />
-                          <span className="text-sm">Hồ sơ cá nhân</span>
+                          <span className="text-sm font-medium">Hồ sơ cá nhân</span>
                         </Link>
 
                         {canAccessAdmin && (
                           <Link
                             to={createPageUrl("AdminDashboard")}
                             onClick={() => setShowUserMenu(false)}
-                            className="flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-orange-50 transition-colors"
+                            className="flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-orange-50 hover:text-orange-600 transition-colors"
                             role="menuitem"
                             tabIndex={0}
                           >
                             <LayoutDashboard className="w-4 h-4" />
-                            <span className="text-sm">Admin Dashboard</span>
+                            <span className="text-sm font-medium">Admin Dashboard</span>
                           </Link>
                         )}
 
@@ -446,12 +471,12 @@ export default function Layout({ children, currentPageName }) {
                           <Link
                             to={createPageUrl("AdminSettings")}
                             onClick={() => setShowUserMenu(false)}
-                            className="flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-orange-50 transition-colors"
+                            className="flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-orange-50 hover:text-orange-600 transition-colors"
                             role="menuitem"
                             tabIndex={0}
                           >
                             <Settings className="w-4 h-4" />
-                            <span className="text-sm">Cài đặt</span>
+                            <span className="text-sm font-medium">Cài đặt</span>
                           </Link>
                         )}
                       </div>
@@ -464,7 +489,7 @@ export default function Layout({ children, currentPageName }) {
                           tabIndex={0}
                         >
                           <LogOut className="w-4 h-4" />
-                          <span className="text-sm">Đăng xuất</span>
+                          <span className="text-sm font-medium">Đăng xuất</span>
                         </button>
                       </div>
                     </div>
@@ -473,10 +498,10 @@ export default function Layout({ children, currentPageName }) {
               ) : (
                 <button
                   onClick={handleLogin}
-                  className={`hidden lg:flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-all duration-300 ${
+                  className={`hidden lg:flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-bold transition-all duration-300 shadow-sm ${
                     isScrolled || isMenuOpen
-                      ? 'bg-white border-2 border-orange-600 text-orange-600 hover:bg-orange-600 hover:text-white shadow-sm'
-                      : 'bg-white/20 backdrop-blur-sm text-white border-2 border-white/30 hover:bg-white hover:text-orange-600'
+                      ? 'bg-orange-600 text-white hover:bg-orange-700 border border-orange-600'
+                      : 'bg-white text-orange-600 border-2 border-white hover:bg-orange-50'
                   }`}
                   aria-label="Login"
                 >
@@ -488,7 +513,7 @@ export default function Layout({ children, currentPageName }) {
               <button
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
                 className={`lg:hidden p-2 rounded-lg transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 ${
-                  isScrolled || isMenuOpen ? 'text-gray-900' : 'text-white'
+                  isScrolled || isMenuOpen ? 'text-gray-900 hover:bg-gray-100' : 'text-white hover:bg-white/20'
                 }`}
                 aria-label={isMenuOpen ? "Close menu" : "Open menu"}
                 aria-expanded={isMenuOpen}
@@ -508,14 +533,14 @@ export default function Layout({ children, currentPageName }) {
       {isMenuOpen && (
         <div 
           id="mobile-menu"
-          className="fixed inset-0 bg-white/95 backdrop-blur-lg z-40 flex flex-col items-center justify-center lg:hidden"
+          className="fixed inset-0 bg-white/98 backdrop-blur-lg z-40 flex flex-col items-center justify-center lg:hidden"
           role="dialog"
           aria-modal="true"
           aria-label="Mobile navigation menu"
         >
           <div className="flex flex-col items-center gap-8 w-full px-6">
             {userRole && currentUser ? (
-              <div className="w-full max-w-sm bg-orange-50 rounded-2xl p-6 mb-4">
+              <div className="w-full max-w-sm bg-orange-50 rounded-2xl p-6 mb-4 border border-orange-200">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-12 h-12 bg-orange-600 rounded-full flex items-center justify-center">
                     <UserIcon className="w-6 h-6 text-white" />
@@ -538,7 +563,7 @@ export default function Layout({ children, currentPageName }) {
                   <Link
                     to={createPageUrl("UserProfile")}
                     onClick={() => setIsMenuOpen(false)}
-                    className="flex items-center gap-2 text-sm text-orange-600 hover:text-orange-700"
+                    className="flex items-center gap-2 text-sm text-orange-600 hover:text-orange-700 font-medium"
                   >
                     <UserIcon className="w-4 h-4" />
                     Hồ sơ cá nhân
@@ -547,7 +572,7 @@ export default function Layout({ children, currentPageName }) {
                     <Link
                       to={createPageUrl("AdminDashboard")}
                       onClick={() => setIsMenuOpen(false)}
-                      className="flex items-center gap-2 text-sm text-orange-600 hover:text-orange-700"
+                      className="flex items-center gap-2 text-sm text-orange-600 hover:text-orange-700 font-medium"
                     >
                       <LayoutDashboard className="w-4 h-4" />
                       Admin Dashboard
@@ -561,7 +586,7 @@ export default function Layout({ children, currentPageName }) {
                   setIsMenuOpen(false);
                   handleLogin();
                 }}
-                className="w-full max-w-sm bg-orange-600 text-white px-6 py-3 rounded-xl font-medium flex items-center justify-center gap-2"
+                className="w-full max-w-sm bg-orange-600 text-white px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg hover:bg-orange-700"
               >
                 <UserIcon className="w-5 h-5" />
                 Đăng nhập
@@ -571,13 +596,15 @@ export default function Layout({ children, currentPageName }) {
             {navigationItems.map((item) => (
               item.hasDropdown ? (
                 <div key={item.name} className="w-full max-w-sm">
-                  <p className="text-lg font-medium text-gray-500 mb-2">{item.name}</p>
+                  <p className="text-lg font-semibold text-gray-500 mb-2">{item.name}</p>
                   {item.dropdownItems.map((dropItem) => (
                     <Link
                       key={dropItem.name}
                       to={dropItem.url}
                       onClick={() => setIsMenuOpen(false)}
-                      className="block text-xl font-medium py-2 px-2 rounded font-display text-gray-700 hover:text-orange-600"
+                      className={`block text-xl font-medium py-2 px-2 rounded font-display transition-colors ${
+                        location.pathname === dropItem.url ? 'text-orange-600' : 'text-gray-800 hover:text-orange-600'
+                      }`}
                     >
                       {dropItem.name}
                     </Link>
@@ -588,7 +615,7 @@ export default function Layout({ children, currentPageName }) {
                   key={item.name}
                   to={item.url}
                   onClick={() => setIsMenuOpen(false)}
-                  className={`text-2xl font-medium py-1 px-2 rounded font-display ${
+                  className={`text-2xl font-bold py-1 px-2 rounded font-display transition-colors ${
                     location.pathname === item.url ? 'text-orange-600' : 'text-gray-800 hover:text-orange-600'
                   }`}
                 >
@@ -602,7 +629,7 @@ export default function Layout({ children, currentPageName }) {
                 setIsMenuOpen(false);
                 setIsBookingOpen(true);
               }}
-              className="mt-4 bg-gradient-to-r from-orange-600 to-red-600 text-white px-8 py-4 rounded-full font-medium hover:from-red-600 hover:to-orange-600 shadow-lg font-body focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2"
+              className="mt-4 bg-gradient-to-r from-orange-600 to-red-600 text-white px-8 py-4 rounded-full font-bold hover:from-red-600 hover:to-orange-600 shadow-lg font-body focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2"
               aria-label="Đặt lịch tư vấn ngay"
             >
               Đặt Lịch Ngay
@@ -614,7 +641,7 @@ export default function Layout({ children, currentPageName }) {
                   setIsMenuOpen(false);
                   handleLogout();
                 }}
-                className="w-full max-w-sm border-2 border-red-600 text-red-600 px-6 py-3 rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-red-50"
+                className="w-full max-w-sm border-2 border-red-600 text-red-600 px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-red-50"
               >
                 <LogOut className="w-5 h-5" />
                 Đăng xuất
@@ -628,8 +655,8 @@ export default function Layout({ children, currentPageName }) {
         {children}
       </main>
 
-      <footer className="bg-gradient-to-br from-gray-900 via-indigo-900 to-purple-900 text-white relative overflow-hidden" role="contentinfo">
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS1vcGFjaXR5PSIwLjA1IiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHwid2lkdGg9IjEwMCUiIHcpaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQlMjIlMjkiLz48L3N2Zz4=')] opacity-30" aria-hidden="true" />
+      <footer className="bg-gradient-to-br from-gray-900 via-indigo-900 to-purple-900 text-white relative overflow-hidden">
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS1vcGFjaXR5PSIwLjA1IiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCUyMikiLz48L3N2Zz4=')] opacity-30" aria-hidden="true" />
         
         <div className="relative max-w-7xl mx-auto px-6 lg:px-8 py-16">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-[clamp(1rem,2vw,2.5rem)] text-center md:text-left">
@@ -693,8 +720,8 @@ export default function Layout({ children, currentPageName }) {
                 </li>
                 <li className="flex items-center gap-3">
                   <Mail className="w-5 h-5 text-orange-400 flex-shrink-0" />
-                  <a href={`mailto:${getSetting('contact_email', 'contact@example.com')}`} className="text-gray-300 hover:text-orange-300 transition-colors break-all">
-                    {getSetting('contact_email', 'contact@example.com')}
+                  <a href={`mailto:${getSetting('contact_email', 'c2nguyendu.baria.bariavungtau@moet.edu.vn')}`} className="text-gray-300 hover:text-orange-300 transition-colors break-all">
+                    {getSetting('contact_email', 'c2nguyendu.baria.bariavungtau@moet.edu.vn')}
                   </a>
                 </li>
               </ul>
