@@ -237,7 +237,7 @@ function AdminUsersContent() {
     if (!selectedUser) return;
 
     try {
-      // Update User entity
+      // ✅ Update User entity with full_name (so it syncs to UserProfile)
       await updateUserMutation.mutateAsync({
         userId: selectedUser.id,
         data: {
@@ -274,7 +274,7 @@ function AdminUsersContent() {
         queryClient.invalidateQueries({ queryKey: ['profiles'] }); // Invalidate after creation
       }
 
-      // Assign code if selected and the profile (either existing or new) does not yet have a user_code
+      // ✅ Assign code if selected
       const profileAfterMutations = queryClient.getQueryData(['profiles'])?.find(p => p.id === currentProfileId);
       const hasExistingCode = profileAfterMutations?.user_code; // Check current state after potential profile update
       if (selectedCodeId && currentProfileId && !hasExistingCode) {
@@ -285,7 +285,7 @@ function AdminUsersContent() {
           });
       }
 
-      toast.success('Cập nhật người dùng thành công!');
+      toast.success('✅ Cập nhật người dùng thành công! (Đồng bộ với UserProfile)');
       setIsEditModalOpen(false); // Close modal only after all operations succeed
     } catch (error) {
       console.error('Error saving:', error);
@@ -487,6 +487,7 @@ function AdminUsersContent() {
               <div className="p-6 border-b">
                 <h3 className="text-xl font-bold text-gray-900">Chỉnh sửa người dùng</h3>
                 <p className="text-sm text-gray-600 mt-1">{selectedUser.email}</p>
+                <p className="text-xs text-indigo-600 mt-2">💡 Thay đổi ở đây sẽ đồng bộ với trang UserProfile của user</p>
               </div>
 
               {/* Tabs */}
@@ -781,7 +782,7 @@ function AdminUsersContent() {
                   ) : (
                     <>
                       <Save className="w-4 h-4" />
-                      Lưu thay đổi
+                      Lưu & Đồng bộ
                     </>
                   )}
                 </button>

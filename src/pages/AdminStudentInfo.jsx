@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -6,7 +7,7 @@ import { createPageUrl } from "@/utils";
 import AdminLayout from "@/components/AdminLayout";
 import { 
   User, Search, Edit2, Save, X, Phone, MapPin, Users,
-  Calendar, Heart, AlertCircle, Briefcase, Home, Mail, ArrowLeft
+  Calendar, Heart, AlertCircle, Briefcase, Home, Mail, ArrowLeft, Camera
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { motion } from "framer-motion";
@@ -20,6 +21,7 @@ export default function AdminStudentInfo() {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({});
+  const [avatarFile, setAvatarFile] = useState(null);
 
   const { data: students = [], isLoading } = useQuery({
     queryKey: ['students-info'],
@@ -30,6 +32,7 @@ export default function AdminStudentInfo() {
     initialData: []
   });
 
+  // ✅ Fetch User accounts for full_name sync
   const { data: users = [] } = useQuery({
     queryKey: ['users'],
     queryFn: async () => {
@@ -53,14 +56,28 @@ export default function AdminStudentInfo() {
     }
   }, [studentIdFromUrl, students, selectedStudent]);
 
+  // ✅ ENHANCED: Update both User AND UserProfile
   const updateMutation = useMutation({
-    mutationFn: async (data) => {
-      return await base44.entities.UserProfile.update(selectedStudent.id, data);
+    mutationFn: async ({ profileData, fullName, avatarUrl }) => {
+      // Update User.full_name if changed
+      if (fullName && selectedStudent.user_id) {
+        await base44.entities.User.update(selectedStudent.user_id, {
+          full_name: fullName
+        });
+      }
+      
+      // Update UserProfile
+      return await base44.entities.UserProfile.update(selectedStudent.id, {
+        ...profileData,
+        avatar_url: avatarUrl // Use the new avatarUrl if provided, otherwise keep existing from profileData
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['students-info'] });
+      queryClient.invalidateQueries({ queryKey: ['users'] });
       toast.success('✅ Đã cập nhật thông tin!');
       setIsEditing(false);
+      setAvatarFile(null); // Reset avatar file after successful upload/update
       setTimeout(async () => {
         const updated = await base44.entities.UserProfile.filter({ id: selectedStudent.id });
         if (updated && updated.length > 0) {
@@ -86,12 +103,36 @@ export default function AdminStudentInfo() {
 
   const handleEdit = (student) => {
     setSelectedStudent(student);
-    setFormData(student || {});
+    const user = (users || []).find(u => u && u.id === student.user_id);
+    setFormData({
+      ...student,
+      full_name: user?.full_name || ''
+    });
     setIsEditing(true);
   };
 
-  const handleSave = () => {
-    updateMutation.mutate(formData);
+  const handleSave = async () => {
+    try {
+      let avatarUrl = selectedStudent.avatar_url;
+      
+      // Upload avatar if changed
+      if (avatarFile) {
+        toast.loading('Đang tải ảnh...', { id: 'avatar' });
+        const { file_url } = await base44.integrations.Core.UploadFile({ file: avatarFile });
+        avatarUrl = file_url;
+        toast.success('Tải ảnh thành công!', { id: 'avatar' });
+      }
+      
+      const { full_name, ...profileData } = formData;
+      
+      updateMutation.mutate({
+        profileData,
+        fullName: full_name,
+        avatarUrl
+      });
+    } catch (error) {
+      toast.error(`Lỗi: ${error.message}`);
+    }
   };
 
   const getStudentName = (student) => {
@@ -126,7 +167,7 @@ export default function AdminStudentInfo() {
             </Link>
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">👨‍👩‍👧‍👦 Thông Tin Học Sinh & Phụ Huynh</h1>
-          <p className="text-gray-600">Quản lý thông tin cá nhân và gia đình học sinh</p>
+          <p className="text-gray-600">Quản lý thông tin cá nhân và gia đình học sinh (đồng bộ với UserProfile)</p>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
@@ -216,13 +257,58 @@ export default function AdminStudentInfo() {
             ) : (
               <div className="space-y-6">
                 
-                {/* Header */}
+                {/* Header with Avatar */}
                 <div className="bg-white rounded-2xl shadow-sm border p-6">
                   <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h2 className="text-2xl font-bold">{getStudentName(selectedStudent)}</h2>
-                      <p className="text-gray-600">{selectedStudent.user_code || 'N/A'}</p>
+                    <div className="flex items-center gap-4">
+                      {/* Avatar */}
+                      <div className="relative">
+                        {(avatarFile && URL.createObjectURL(avatarFile)) ? (
+                          <img
+                            src={URL.createObjectURL(avatarFile)}
+                            alt="Avatar Preview"
+                            className="w-20 h-20 rounded-full object-cover border-4 border-indigo-100"
+                          />
+                        ) : selectedStudent.avatar_url ? (
+                          <img
+                            src={selectedStudent.avatar_url}
+                            alt={getStudentName(selectedStudent)}
+                            className="w-20 h-20 rounded-full object-cover border-4 border-indigo-100"
+                          />
+                        ) : (
+                          <div className="w-20 h-20 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full flex items-center justify-center border-4 border-indigo-100">
+                            <User className="w-10 h-10 text-indigo-600" />
+                          </div>
+                        )}
+                        {isEditing && (
+                          <label className="absolute bottom-0 right-0 w-8 h-8 bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-lg cursor-pointer hover:bg-indigo-700">
+                            <Camera className="w-4 h-4" />
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => setAvatarFile(e.target.files[0])}
+                              className="hidden"
+                            />
+                          </label>
+                        )}
+                      </div>
+                      
+                      <div>
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={formData.full_name || ''}
+                            onChange={(e) => setFormData({...formData, full_name: e.target.value})}
+                            className="text-2xl font-bold border-2 border-indigo-600 rounded-lg px-3 py-1 mb-2"
+                            placeholder="Họ và tên"
+                          />
+                        ) : (
+                          <h2 className="text-2xl font-bold">{getStudentName(selectedStudent)}</h2>
+                        )}
+                        <p className="text-gray-600">{selectedStudent.user_code || 'N/A'}</p>
+                      </div>
                     </div>
+                    
                     <div className="flex gap-2">
                       {isEditing ? (
                         <>
@@ -230,6 +316,7 @@ export default function AdminStudentInfo() {
                             onClick={() => {
                               setIsEditing(false);
                               setFormData({});
+                              setAvatarFile(null);
                             }}
                             className="flex items-center gap-2 border-2 border-gray-300 px-4 py-2 rounded-xl hover:bg-gray-50"
                           >
@@ -283,57 +370,53 @@ export default function AdminStudentInfo() {
                     Thông Tin Cá Nhân
                   </h3>
                   <div className="grid md:grid-cols-2 gap-4 text-sm">
-                    {['date_of_birth', 'gender', 'ethnicity', 'religion', 'phone', 'emergency_contact', 
-                      'address', 'current_address', 'province', 'district', 'ward'].map(field => (
-                      <div key={field}>
-                        <label className="block text-gray-600 mb-1 capitalize">
-                          {field === 'date_of_birth' ? '📅 Ngày sinh' :
-                           field === 'gender' ? '👤 Giới tính' :
-                           field === 'ethnicity' ? '🌐 Dân tộc' :
-                           field === 'religion' ? '☪ Tôn giáo' :
-                           field === 'phone' ? '📱 SĐT' :
-                           field === 'emergency_contact' ? '🚨 SĐT khẩn cấp' :
-                           field === 'address' ? '🏠 Địa chỉ thường trú' :
-                           field === 'current_address' ? '📍 Địa chỉ tạm trú' :
-                           field === 'province' ? '🏙 Tỉnh/TP' :
-                           field === 'district' ? '🗺 Quận/Huyện' :
-                           field === 'ward' ? '📌 Phường/Xã' : field}
-                        </label>
+                    {[
+                      { key: 'date_of_birth', label: '📅 Ngày sinh', type: 'date' },
+                      { key: 'gender', label: '👤 Giới tính', type: 'select', options: [
+                        { value: 'male', label: 'Nam' },
+                        { value: 'female', label: 'Nữ' },
+                        { value: 'other', label: 'Khác' }
+                      ]},
+                      { key: 'ethnicity', label: '🌐 Dân tộc', type: 'text' },
+                      { key: 'religion', label: '☪ Tôn giáo', type: 'text' },
+                      { key: 'phone', label: '📱 SĐT', type: 'tel' },
+                      { key: 'emergency_contact', label: '🚨 SĐT khẩn cấp', type: 'tel' },
+                      { key: 'address', label: '🏠 Địa chỉ thường trú', type: 'text', colSpan: 2 },
+                      { key: 'current_address', label: '📍 Địa chỉ tạm trú', type: 'text', colSpan: 2 },
+                      { key: 'province', label: '🏙 Tỉnh/TP', type: 'text' },
+                      { key: 'district', label: '🗺 Quận/Huyện', type: 'text' },
+                      { key: 'ward', label: '📌 Phường/Xã', type: 'text' }
+                    ].map(field => (
+                      <div key={field.key} className={field.colSpan === 2 ? 'md:col-span-2' : ''}>
+                        <label className="block text-gray-600 mb-1">{field.label}</label>
                         {isEditing ? (
-                          field === 'gender' ? (
+                          field.type === 'select' ? (
                             <select
-                              value={formData[field] || ''}
-                              onChange={(e) => setFormData({...formData, [field]: e.target.value})}
+                              value={formData[field.key] || ''}
+                              onChange={(e) => setFormData({...formData, [field.key]: e.target.value})}
                               className="w-full px-3 py-2 border rounded-lg"
                             >
                               <option value="">Chọn</option>
-                              <option value="male">Nam</option>
-                              <option value="female">Nữ</option>
-                              <option value="other">Khác</option>
+                              {field.options?.map(opt => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                              ))}
                             </select>
-                          ) : field === 'date_of_birth' ? (
-                            <input
-                              type="date"
-                              value={formData[field] || ''}
-                              onChange={(e) => setFormData({...formData, [field]: e.target.value})}
-                              className="w-full px-3 py-2 border rounded-lg"
-                            />
                           ) : (
                             <input
-                              type="text"
-                              value={formData[field] || ''}
-                              onChange={(e) => setFormData({...formData, [field]: e.target.value})}
+                              type={field.type}
+                              value={formData[field.key] || ''}
+                              onChange={(e) => setFormData({...formData, [field.key]: e.target.value})}
                               className="w-full px-3 py-2 border rounded-lg"
-                              placeholder={`Nhập ${field}`}
+                              placeholder={`Nhập ${field.label.split(' ')[1] || field.label}`}
                             />
                           )
                         ) : (
                           <p className="font-medium">
-                            {field === 'gender' ? (
-                              selectedStudent[field] === 'male' ? 'Nam' :
-                              selectedStudent[field] === 'female' ? 'Nữ' :
-                              selectedStudent[field] || 'Chưa có'
-                            ) : selectedStudent[field] || 'Chưa có'}
+                            {field.key === 'gender' ? (
+                              selectedStudent[field.key] === 'male' ? 'Nam' :
+                              selectedStudent[field.key] === 'female' ? 'Nữ' :
+                              selectedStudent[field.key] || 'Chưa có'
+                            ) : selectedStudent[field.key] || 'Chưa có'}
                           </p>
                         )}
                       </div>

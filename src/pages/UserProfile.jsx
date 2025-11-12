@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import {
   User, Mail, School, Calendar, Target, CheckCircle, Clock, FileText, AlertCircle,
   Award, TrendingUp, Plus, BookOpen, Brain, ExternalLink, Lightbulb, MessageCircle, X,
-  Download, Zap, Activity, BarChart3, ArrowRight, Users, Edit, Camera, Save
+  Download, Zap, Activity, BarChart3, ArrowRight, Users as UsersIcon, Edit, Camera, Save, Phone, MapPin
 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -21,6 +21,18 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 
 const COLORS = ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
 
+// Validation functions
+const validateScore = (value) => {
+  if (value === '') return true; // Allow empty for incomplete input
+  const num = parseFloat(value);
+  return !isNaN(num) && num >= 0 && num <= 10;
+};
+
+const validatePhone = (value) => {
+  if (!value) return true;
+  return /^[0-9]{9,11}$/.test(value.replace(/\s/g, ''));
+};
+
 function UserProfileContent() {
   const queryClient = useQueryClient();
   const [currentUser, setCurrentUser] = useState(null);
@@ -30,12 +42,42 @@ function UserProfileContent() {
   const [userPermissions, setUserPermissions] = useState([]);
   const [showAddScoreModal, setShowAddScoreModal] = useState(false);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [profileTab, setProfileTab] = useState('basic'); // basic, family, circumstances
   const [editForm, setEditForm] = useState({
     full_name: '',
     phone: '',
     date_of_birth: '',
+    gender: '',
+    ethnicity: '',
+    religion: '',
     address: '',
-    bio: ''
+    current_address: '',
+    province: '',
+    district: '',
+    ward: '',
+    emergency_contact: '',
+    bio: '',
+    // Family
+    father_name: '',
+    father_phone: '',
+    father_email: '',
+    father_job: '',
+    father_workplace: '',
+    mother_name: '',
+    mother_phone: '',
+    mother_email: '',
+    mother_job: '',
+    mother_workplace: '',
+    guardian_name: '',
+    guardian_phone: '',
+    guardian_email: '',
+    guardian_relationship: '',
+    // Circumstances
+    family_status: '',
+    economic_status: '',
+    special_circumstances: '',
+    health_notes: '',
+    allergies: ''
   });
   const [avatarFile, setAvatarFile] = useState(null);
   const [scoreForm, setScoreForm] = useState({
@@ -48,8 +90,9 @@ function UserProfileContent() {
     average_score: '',
     classification: 'average'
   });
+  const [scoreErrors, setScoreErrors] = useState({});
 
-  // ✅ Fetch Academic Years
+  // Fetch Academic Years
   const { data: academicYears = [] } = useQuery({
     queryKey: ['academicYears'],
     queryFn: async () => {
@@ -59,29 +102,31 @@ function UserProfileContent() {
     initialData: []
   });
 
-  // ✅ FIX: Fetch Subjects WITHOUT duplicates
+  // Fetch Subjects WITHOUT duplicates
   const { data: subjects = [] } = useQuery({
     queryKey: ['subjects', profileData?.grade_level],
     queryFn: async () => {
       const allSubjects = await base44.entities.Subject.filter({ is_active: true }, 'order');
-      
-      let filteredSubjects = allSubjects || [];
+
+      let filtered = allSubjects || [];
 
       if (profileData?.grade_level) {
         const gradeNum = parseInt(profileData.grade_level);
         const level = gradeNum >= 10 ? 'high_school' : 'middle_school';
-        filteredSubjects = (allSubjects || []).filter(s => s.level === level || s.level === 'both');
+        filtered = filtered.filter(s => s.level === level || s.level === 'both');
       }
 
-      // ✅ Remove duplicates by subject_code
-      const uniqueSubjects = filteredSubjects.reduce((acc, current) => {
-        const existing = acc.find(item => item.subject_code === current.subject_code);
-        if (!existing) {
-          acc.push(current);
+      // Remove duplicates by subject_code (keep first occurrence)
+      const seen = new Set();
+      const uniqueSubjects = filtered.filter(s => {
+        if (seen.has(s.subject_code)) {
+          return false;
         }
-        return acc;
-      }, []);
-      
+        seen.add(s.subject_code);
+        return true;
+      });
+
+      console.log('📚 Unique subjects:', uniqueSubjects.length, 'from', filtered.length);
       return uniqueSubjects;
     },
     enabled: !!profileData,
@@ -96,12 +141,6 @@ function UserProfileContent() {
 
         if (user) {
           setCurrentUser(user);
-          
-          // ✅ Initialize edit form with user data
-          setEditForm(prev => ({
-            ...prev,
-            full_name: user.full_name || ''
-          }));
 
           if (user.role !== 'admin') {
             try {
@@ -162,16 +201,44 @@ function UserProfileContent() {
     if (profiles && profiles.length > 0) {
       const profile = profiles[0];
       setProfileData(profile);
-      
-      // ✅ Populate edit form with profile data
-      setEditForm(prev => ({
-        ...prev,
-        full_name: currentUser?.full_name || profile.full_name || '',
+
+      // Populate FULL edit form with ALL fields from AdminStudentInfo
+      setEditForm({
+        full_name: currentUser?.full_name || profile.full_name || '', // Use profile's full_name if currentUser doesn't have it.
         phone: profile.phone || '',
         date_of_birth: profile.date_of_birth || '',
+        gender: profile.gender || '',
+        ethnicity: profile.ethnicity || '',
+        religion: profile.religion || '',
         address: profile.address || '',
-        bio: profile.bio || ''
-      }));
+        current_address: profile.current_address || '',
+        province: profile.province || '',
+        district: profile.district || '',
+        ward: profile.ward || '',
+        emergency_contact: profile.emergency_contact || '',
+        bio: profile.bio || '',
+        // Family
+        father_name: profile.father_name || '',
+        father_phone: profile.father_phone || '',
+        father_email: profile.father_email || '',
+        father_job: profile.father_job || '',
+        father_workplace: profile.father_workplace || '',
+        mother_name: profile.mother_name || '',
+        mother_phone: profile.mother_phone || '',
+        mother_email: profile.mother_email || '',
+        mother_job: profile.mother_job || '',
+        mother_workplace: profile.mother_workplace || '',
+        guardian_name: profile.guardian_name || '',
+        guardian_phone: profile.guardian_phone || '',
+        guardian_email: profile.guardian_email || '',
+        guardian_relationship: profile.guardian_relationship || '',
+        // Circumstances
+        family_status: profile.family_status || '',
+        economic_status: profile.economic_status || '',
+        special_circumstances: profile.special_circumstances || '',
+        health_notes: profile.health_notes || '',
+        allergies: profile.allergies || ''
+      });
     }
   }, [profiles, currentUser]);
 
@@ -195,7 +262,7 @@ function UserProfileContent() {
       if (!currentUser?.id) {
         return [];
       }
-      
+
       try {
         const scores = await base44.entities.AcademicScore.filter({ user_id: currentUser.id });
         return scores || [];
@@ -236,28 +303,60 @@ function UserProfileContent() {
     initialData: [],
   });
 
-  // ✅ NEW: Update Profile Mutation
+  // NEW: Update Profile Mutation (full CRUD)
   const updateProfileMutation = useMutation({
     mutationFn: async (formData) => {
       let avatarUrl = profileData?.avatar_url;
-      
+
       // Upload avatar if file selected
       if (avatarFile) {
+        toast.loading('Đang tải ảnh lên...', { id: 'avatar' });
         const { file_url } = await base44.integrations.Core.UploadFile({ file: avatarFile });
         avatarUrl = file_url;
+        toast.success('Tải ảnh thành công!', { id: 'avatar' });
       }
-      
-      // Update User full_name
+
+      // Update User.full_name (synced to User entity)
       await base44.auth.updateMe({ full_name: formData.full_name });
-      
-      // Update UserProfile
+
+      // Update UserProfile with ALL fields
       if (profileData?.id) {
         return await base44.entities.UserProfile.update(profileData.id, {
+          full_name: formData.full_name, // Also update full_name here for profileData immediately
           phone: formData.phone,
           date_of_birth: formData.date_of_birth,
+          gender: formData.gender,
+          ethnicity: formData.ethnicity,
+          religion: formData.religion,
           address: formData.address,
+          current_address: formData.current_address,
+          province: formData.province,
+          district: formData.district,
+          ward: formData.ward,
+          emergency_contact: formData.emergency_contact,
           bio: formData.bio,
-          avatar_url: avatarUrl
+          avatar_url: avatarUrl,
+          // Family
+          father_name: formData.father_name,
+          father_phone: formData.father_phone,
+          father_email: formData.father_email,
+          father_job: formData.father_job,
+          father_workplace: formData.father_workplace,
+          mother_name: formData.mother_name,
+          mother_phone: formData.mother_phone,
+          mother_email: formData.mother_email,
+          mother_job: formData.mother_job,
+          mother_workplace: formData.mother_workplace,
+          guardian_name: formData.guardian_name,
+          guardian_phone: formData.guardian_phone,
+          guardian_email: formData.guardian_email,
+          guardian_relationship: formData.guardian_relationship,
+          // Circumstances
+          family_status: formData.family_status,
+          economic_status: formData.economic_status,
+          special_circumstances: formData.special_circumstances,
+          health_notes: formData.health_notes,
+          allergies: formData.allergies
         });
       }
       return null; // Should not happen if profileData.id exists
@@ -267,7 +366,7 @@ function UserProfileContent() {
       toast.success('✅ Đã cập nhật hồ sơ!');
       setShowEditProfileModal(false);
       setAvatarFile(null);
-      // Refresh user data to get updated full_name
+      // Refresh user data
       base44.auth.me().then(user => setCurrentUser(user));
     },
     onError: (error) => {
@@ -275,19 +374,15 @@ function UserProfileContent() {
     }
   });
 
-  // ✅ ENHANCED: Validate score inputs
-  const validateScore = (value) => {
-    if (value === '') return true; // Allow empty for incomplete input
-    const num = parseFloat(value);
-    return !isNaN(num) && num >= 0 && num <= 10;
-  };
-
+  // ENHANCED: Validate score inputs with error messages
   const handleScoreChange = (field, value) => {
-    // ✅ Validate on change
+    // Validate on change
     if (value !== '' && !validateScore(value)) {
-      toast.error('Điểm phải từ 0.0 đến 10.0');
+      setScoreErrors(prev => ({ ...prev, [field]: 'Điểm phải từ 0.0 đến 10.0' }));
+      setScoreForm(prev => ({ ...prev, [field]: value })); // Still update value to allow user to type
       return;
     }
+    setScoreErrors(prev => ({ ...prev, [field]: null }));
     setScoreForm(prev => ({ ...prev, [field]: value }));
   };
 
@@ -295,12 +390,12 @@ function UserProfileContent() {
     if (scoreForm.midterm_score !== '' && scoreForm.final_score !== '') {
       const midterm = parseFloat(scoreForm.midterm_score);
       const final = parseFloat(scoreForm.final_score);
-      
-      // ✅ Validate range
+
+      // Validate range
       if (!validateScore(scoreForm.midterm_score) || !validateScore(scoreForm.final_score)) {
         return;
       }
-      
+
       if (!isNaN(midterm) && !isNaN(final)) {
         const avg = (midterm + final) / 2;
         const classification = avg >= 8.0 ? 'excellent' : avg >= 6.5 ? 'good' : avg >= 5.0 ? 'average' : 'weak';
@@ -339,7 +434,7 @@ function UserProfileContent() {
   const academicAnalysis = useMemo(() => {
     if (!academicScores || academicScores.length === 0) return null;
 
-    const validScores = (academicScores || []).filter(s => 
+    const validScores = (academicScores || []).filter(s =>
       typeof s.average_score === 'number' && !isNaN(s.average_score)
     );
     if (validScores.length === 0) return null;
@@ -472,24 +567,24 @@ function UserProfileContent() {
     return actions.slice(0, 4);
   }, [testResults, studentJourney, counselingSessions, academicScores]);
 
-  // ✅ ENHANCED: Add Score with Validation
+  // ENHANCED: Add Score with full validation
   const addScoreMutation = useMutation({
     mutationFn: async (scoreData) => {
-      // ✅ Final validation before submit
+      // Final validation before submit
       const midterm = parseFloat(scoreData.midterm_score);
       const final = parseFloat(scoreData.final_score);
-      
+
       if (isNaN(midterm) || isNaN(final)) {
         throw new Error('Điểm phải là số hợp lệ');
       }
-      
+
       if (midterm < 0 || midterm > 10 || final < 0 || final > 10) {
         throw new Error('Điểm phải từ 0.0 đến 10.0');
       }
-      
+
       return await base44.entities.AcademicScore.create({
         student_id: profileData.id,
-        user_id: currentUser.id, // ✅ ADD user_id for easier queries
+        user_id: currentUser.id, // ADD user_id for easier queries
         ...scoreData,
         midterm_score: midterm,
         final_score: final,
@@ -499,7 +594,6 @@ function UserProfileContent() {
     },
     onSuccess: (newScore) => {
       queryClient.invalidateQueries({ queryKey: ['academicScores'] });
-      queryClient.invalidateQueries({ queryKey: ['scores-academic'] });
       toast.success('✅ Đã thêm điểm thành công!');
       setShowAddScoreModal(false);
       setScoreForm({
@@ -512,6 +606,7 @@ function UserProfileContent() {
         average_score: '',
         classification: 'average'
       });
+      setScoreErrors({}); // Clear score errors on success
       setTimeout(() => refetchScores(), 500);
     },
     onError: (error) => {
@@ -526,7 +621,6 @@ function UserProfileContent() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['academicScores', profileData?.id] });
-      queryClient.invalidateQueries({ queryKey: ['scores-academic'] }); // Invalidate admin view
       toast.success('✅ Đã xóa điểm!');
       setTimeout(() => refetchScores(), 500);
     },
@@ -548,7 +642,7 @@ function UserProfileContent() {
   const showTranscriptTab = displayRole === 'student';
   const isParent = displayRole === 'parent';
 
-  // ✅ FIX: Safe access to linked students
+  // FIX: Safe access to linked students
   const linkedStudents = useMemo(() => {
     if (!isParent || !profileData?.linked_student_codes) return [];
     return Array.isArray(profileData.linked_student_codes) ? profileData.linked_student_codes : [];
@@ -613,7 +707,7 @@ function UserProfileContent() {
           {/* Sidebar */}
           <div className="lg:col-span-1 space-y-6">
             <div className="bg-white rounded-3xl p-8 shadow-lg text-center">
-              {/* ✅ Avatar with Upload */}
+              {/* Avatar with Upload */}
               <div className="relative w-32 h-32 mx-auto mb-6">
                 {profileData?.avatar_url ? (
                   <img
@@ -650,6 +744,12 @@ function UserProfileContent() {
                   <Mail className="w-4 h-4 text-indigo-600" />
                   <span className="text-sm break-all">{displayEmail}</span>
                 </div>
+                {profileData?.phone && (
+                  <div className="flex items-center gap-3 text-gray-600">
+                    <Phone className="w-4 h-4 text-indigo-600" />
+                    <span className="text-sm">{profileData.phone}</span>
+                  </div>
+                )}
                 {profileData?.school_name && (
                   <div className="flex items-center gap-3 text-gray-600">
                     <School className="w-4 h-4 text-indigo-600" />
@@ -662,8 +762,14 @@ function UserProfileContent() {
                     <span className="text-sm">Lớp {profileData.class_name}</span>
                   </div>
                 )}
+                {profileData?.address && (
+                  <div className="flex items-center gap-3 text-gray-600">
+                    <MapPin className="w-4 h-4 text-indigo-600" />
+                    <span className="text-sm">{profileData.address}</span>
+                  </div>
+                )}
               </div>
-              
+
               <button
                 onClick={() => setShowEditProfileModal(true)}
                 className="mt-6 w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 rounded-xl font-medium hover:from-purple-600 hover:to-indigo-600 transition-all flex items-center justify-center gap-2"
@@ -710,17 +816,17 @@ function UserProfileContent() {
               </div>
             </div>
 
-            {/* ✅ NEW: Linked Students for Parent */}
+            {/* NEW: Linked Students for Parent */}
             {isParent && (
               <div className="bg-gradient-to-br from-pink-50 to-purple-50 rounded-3xl p-6 shadow-lg border-2 border-pink-200">
                 <h3 className="font-bold mb-4 flex items-center gap-2">
-                  <Users className="w-5 h-5 text-pink-600" />
+                  <UsersIcon className="w-5 h-5 text-pink-600" />
                   Con Em ({linkedStudents.length})
                 </h3>
-                
+
                 {linkedStudents.length === 0 ? (
                   <div className="text-center py-4">
-                    <Users className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+                    <UsersIcon className="w-12 h-12 text-gray-300 mx-auto mb-2" />
                     <p className="text-sm text-gray-600 mb-3">Chưa liên kết với con nào</p>
                     <a
                       href={createPageUrl("ParentLinking")}
@@ -735,7 +841,7 @@ function UserProfileContent() {
                       <div key={idx} className="bg-white rounded-xl p-4 border-2 border-pink-100 hover:border-pink-300 transition-all">
                         <div className="flex items-center gap-3 mb-2">
                           <div className="w-10 h-10 bg-pink-100 rounded-full flex items-center justify-center">
-                            <Users className="w-5 h-5 text-pink-600" />
+                            <UsersIcon className="w-5 h-5 text-pink-600" />
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="font-bold text-gray-900 truncate">{student.student_name || student.student_code}</p>
@@ -757,7 +863,7 @@ function UserProfileContent() {
                         </a>
                       </div>
                     ))}
-                    
+
                     <a
                       href={createPageUrl("ParentLinking")}
                       className="block w-full bg-white border-2 border-pink-600 text-pink-600 text-center py-2 rounded-lg text-sm hover:bg-pink-50 flex items-center justify-center gap-2"
@@ -1302,131 +1408,521 @@ function UserProfileContent() {
         </div>
       </div>
 
-      {/* ✅ NEW: Edit Profile Modal */}
+      {/* REDESIGNED: Full Profile Edit Modal (matching AdminStudentInfo) */}
       {showEditProfileModal && (
         <div
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-          onClick={() => setShowEditProfileModal(false)}
+          onClick={() => {
+            setShowEditProfileModal(false);
+            setProfileTab('basic'); // Reset tab on close
+          }}
         >
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto"
+            className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col"
           >
-            <div className="flex items-center justify-between mb-6 border-b pb-4">
-              <h3 className="text-2xl font-bold flex items-center gap-2">
-                <Edit className="w-6 h-6 text-indigo-600" />
-                Chỉnh Sửa Hồ Sơ
-              </h3>
-              <button onClick={() => setShowEditProfileModal(false)}>
+            {/* Header */}
+            <div className="p-6 border-b flex items-center justify-between">
+              <div>
+                <h3 className="text-2xl font-bold flex items-center gap-2">
+                  <Edit className="w-6 h-6 text-indigo-600" />
+                  Chỉnh Sửa Hồ Sơ
+                </h3>
+                <p className="text-sm text-gray-600 mt-1">Cập nhật thông tin cá nhân và gia đình</p>
+              </div>
+              <button onClick={() => {
+                setShowEditProfileModal(false);
+                setProfileTab('basic'); // Reset tab on close
+              }}>
                 <X className="w-6 h-6 text-gray-400 hover:text-gray-600" />
               </button>
             </div>
 
-            <div className="space-y-6">
-              {/* Avatar Upload */}
-              <div className="text-center">
-                <label className="block text-sm font-medium mb-2">Ảnh đại diện</label>
-                <div className="relative inline-block">
-                  {avatarFile ? (
-                    <img
-                      src={URL.createObjectURL(avatarFile)}
-                      alt="Preview"
-                      className="w-32 h-32 rounded-full object-cover border-4 border-indigo-100"
-                    />
-                  ) : profileData?.avatar_url ? (
-                    <img
-                      src={profileData.avatar_url}
-                      alt={displayFullName}
-                      className="w-32 h-32 rounded-full object-cover border-4 border-indigo-100"
-                    />
-                  ) : (
-                    <div className="w-32 h-32 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full flex items-center justify-center border-4 border-indigo-100">
-                      <User className="w-16 h-16 text-indigo-600" />
-                    </div>
-                  )}
-                  <label className="absolute bottom-0 right-0 w-10 h-10 bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-lg cursor-pointer hover:bg-indigo-700 transition-colors">
-                    <Camera className="w-5 h-5" />
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => setAvatarFile(e.target.files[0])}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
-                {avatarFile && (
-                  <button
-                    onClick={() => setAvatarFile(null)}
-                    className="mt-2 text-sm text-red-600 hover:text-red-700"
-                  >
-                    Hủy ảnh
-                  </button>
-                )}
-              </div>
-
-              <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">Họ và tên *</label>
-                  <input
-                    type="text"
-                    value={editForm.full_name}
-                    onChange={(e) => setEditForm({...editForm, full_name: e.target.value})}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-600 focus:outline-none"
-                    placeholder="Nguyễn Văn A"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium mb-2">Số điện thoại</label>
-                  <input
-                    type="tel"
-                    value={editForm.phone}
-                    onChange={(e) => setEditForm({...editForm, phone: e.target.value})}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-600 focus:outline-none"
-                    placeholder="0123456789"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium mb-2">Ngày sinh</label>
-                  <input
-                    type="date"
-                    value={editForm.date_of_birth}
-                    onChange={(e) => setEditForm({...editForm, date_of_birth: e.target.value})}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-600 focus:outline-none"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium mb-2">Địa chỉ</label>
-                  <input
-                    type="text"
-                    value={editForm.address}
-                    onChange={(e) => setEditForm({...editForm, address: e.target.value})}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-600 focus:outline-none"
-                    placeholder="Số nhà, đường, phường/xã"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">Giới thiệu bản thân</label>
-                <textarea
-                  value={editForm.bio}
-                  onChange={(e) => setEditForm({...editForm, bio: e.target.value})}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-600 focus:outline-none"
-                  rows="4"
-                  placeholder="Viết vài dòng về bạn..."
-                />
+            {/* Tabs */}
+            <div className="border-b">
+              <div className="flex px-6">
+                <button
+                  onClick={() => setProfileTab('basic')}
+                  className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                    profileTab === 'basic'
+                      ? 'border-indigo-600 text-indigo-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Thông tin cơ bản
+                </button>
+                <button
+                  onClick={() => setProfileTab('family')}
+                  className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                    profileTab === 'family'
+                      ? 'border-indigo-600 text-indigo-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Gia đình
+                </button>
+                <button
+                  onClick={() => setProfileTab('circumstances')}
+                  className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                    profileTab === 'circumstances'
+                      ? 'border-indigo-600 text-indigo-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Hoàn cảnh
+                </button>
               </div>
             </div>
 
-            <div className="flex gap-3 mt-6 pt-6 border-t">
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {profileTab === 'basic' && (
+                <div className="space-y-6">
+                  {/* Avatar Upload */}
+                  <div className="text-center pb-6 border-b">
+                    <label className="block text-sm font-medium mb-3">Ảnh đại diện</label>
+                    <div className="relative inline-block">
+                      {avatarFile ? (
+                        <img
+                          src={URL.createObjectURL(avatarFile)}
+                          alt="Preview"
+                          className="w-32 h-32 rounded-full object-cover border-4 border-indigo-100"
+                        />
+                      ) : profileData?.avatar_url ? (
+                        <img
+                          src={profileData.avatar_url}
+                          alt={displayFullName}
+                          className="w-32 h-32 rounded-full object-cover border-4 border-indigo-100"
+                        />
+                      ) : (
+                        <div className="w-32 h-32 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full flex items-center justify-center border-4 border-indigo-100">
+                          <User className="w-16 h-16 text-indigo-600" />
+                        </div>
+                      )}
+                      <label className="absolute bottom-0 right-0 w-10 h-10 bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-lg cursor-pointer hover:bg-indigo-700 transition-colors">
+                        <Camera className="w-5 h-5" />
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => setAvatarFile(e.target.files[0])}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                    {avatarFile && (
+                      <button
+                        onClick={() => setAvatarFile(null)}
+                        className="mt-2 text-sm text-red-600 hover:text-red-700"
+                      >
+                        Hủy ảnh
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Họ và tên *</label>
+                      <input
+                        type="text"
+                        value={editForm.full_name}
+                        onChange={(e) => setEditForm({...editForm, full_name: e.target.value})}
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-600 focus:outline-none"
+                        placeholder="Nguyễn Văn A"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Số điện thoại</label>
+                      <input
+                        type="tel"
+                        value={editForm.phone}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setEditForm({...editForm, phone: value});
+                          if (value && !validatePhone(value)) {
+                            toast.error('SĐT phải có 9-11 chữ số', { id: 'phone-error' });
+                          } else {
+                            toast.dismiss('phone-error');
+                          }
+                        }}
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-600 focus:outline-none"
+                        placeholder="0123456789"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Ngày sinh</label>
+                      <input
+                        type="date"
+                        value={editForm.date_of_birth}
+                        onChange={(e) => setEditForm({...editForm, date_of_birth: e.target.value})}
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-600 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Giới tính</label>
+                      <select
+                        value={editForm.gender}
+                        onChange={(e) => setEditForm({...editForm, gender: e.target.value})}
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-600 focus:outline-none"
+                      >
+                        <option value="">Chọn</option>
+                        <option value="male">Nam</option>
+                        <option value="female">Nữ</option>
+                        <option value="other">Khác</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Dân tộc</label>
+                      <input
+                        type="text"
+                        value={editForm.ethnicity}
+                        onChange={(e) => setEditForm({...editForm, ethnicity: e.target.value})}
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-600 focus:outline-none"
+                        placeholder="Kinh, Tày, Mông..."
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Tôn giáo</label>
+                      <input
+                        type="text"
+                        value={editForm.religion}
+                        onChange={(e) => setEditForm({...editForm, religion: e.target.value})}
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-600 focus:outline-none"
+                        placeholder="Không, Phật giáo, Công giáo..."
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Tỉnh/Thành phố</label>
+                      <input
+                        type="text"
+                        value={editForm.province}
+                        onChange={(e) => setEditForm({...editForm, province: e.target.value})}
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-600 focus:outline-none"
+                        placeholder="Bà Rịa - Vũng Tàu"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Quận/Huyện</label>
+                      <input
+                        type="text"
+                        value={editForm.district}
+                        onChange={(e) => setEditForm({...editForm, district: e.target.value})}
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-600 focus:outline-none"
+                        placeholder="TP Bà Rịa"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Phường/Xã</label>
+                      <input
+                        type="text"
+                        value={editForm.ward}
+                        onChange={(e) => setEditForm({...editForm, ward: e.target.value})}
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-600 focus:outline-none"
+                        placeholder="Phường 1"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Địa chỉ thường trú</label>
+                    <input
+                      type="text"
+                      value={editForm.address}
+                      onChange={(e) => setEditForm({...editForm, address: e.target.value})}
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-600 focus:outline-none"
+                      placeholder="Số nhà, đường, phường/xã"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Địa chỉ tạm trú (nếu khác)</label>
+                    <input
+                      type="text"
+                      value={editForm.current_address}
+                      onChange={(e) => setEditForm({...editForm, current_address: e.target.value})}
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-600 focus:outline-none"
+                      placeholder="Số nhà, đường..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2">SĐT khẩn cấp</label>
+                    <input
+                      type="tel"
+                      value={editForm.emergency_contact}
+                      onChange={(e) => setEditForm({...editForm, emergency_contact: e.target.value})}
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-600 focus:outline-none"
+                      placeholder="0987654321"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Giới thiệu bản thân</label>
+                    <textarea
+                      value={editForm.bio}
+                      onChange={(e) => setEditForm({...editForm, bio: e.target.value})}
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-600 focus:outline-none"
+                      rows="4"
+                      placeholder="Viết vài dòng về bạn, sở thích, ước mơ..."
+                    />
+                  </div>
+                </div>
+              )}
+
+              {profileTab === 'family' && (
+                <div className="space-y-6">
+                  {/* Father */}
+                  <div className="bg-blue-50 rounded-xl p-6 border-2 border-blue-200">
+                    <h4 className="font-bold text-blue-900 mb-4 flex items-center gap-2">
+                      👨 Thông Tin Cha
+                    </h4>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm mb-1 text-gray-700">Họ tên</label>
+                        <input
+                          type="text"
+                          value={editForm.father_name}
+                          onChange={(e) => setEditForm({...editForm, father_name: e.target.value})}
+                          className="w-full px-4 py-2.5 border-2 rounded-lg focus:border-blue-600 focus:outline-none"
+                          placeholder="Nguyễn Văn B"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm mb-1 text-gray-700">Số điện thoại</label>
+                        <input
+                          type="tel"
+                          value={editForm.father_phone}
+                          onChange={(e) => setEditForm({...editForm, father_phone: e.target.value})}
+                          className="w-full px-4 py-2.5 border-2 rounded-lg focus:border-blue-600 focus:outline-none"
+                          placeholder="0123456789"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm mb-1 text-gray-700">Email</label>
+                        <input
+                          type="email"
+                          value={editForm.father_email}
+                          onChange={(e) => setEditForm({...editForm, father_email: e.target.value})}
+                          className="w-full px-4 py-2.5 border-2 rounded-lg focus:border-blue-600 focus:outline-none"
+                          placeholder="email@example.com"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm mb-1 text-gray-700">Nghề nghiệp</label>
+                        <input
+                          type="text"
+                          value={editForm.father_job}
+                          onChange={(e) => setEditForm({...editForm, father_job: e.target.value})}
+                          className="w-full px-4 py-2.5 border-2 rounded-lg focus:border-blue-600 focus:outline-none"
+                          placeholder="Kỹ sư, Bác sĩ..."
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-sm mb-1 text-gray-700">Nơi làm việc</label>
+                        <input
+                          type="text"
+                          value={editForm.father_workplace}
+                          onChange={(e) => setEditForm({...editForm, father_workplace: e.target.value})}
+                          className="w-full px-4 py-2.5 border-2 rounded-lg focus:border-blue-600 focus:outline-none"
+                          placeholder="Công ty ABC"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Mother */}
+                  <div className="bg-pink-50 rounded-xl p-6 border-2 border-pink-200">
+                    <h4 className="font-bold text-pink-900 mb-4 flex items-center gap-2">
+                      👩 Thông Tin Mẹ
+                    </h4>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm mb-1 text-gray-700">Họ tên</label>
+                        <input
+                          type="text"
+                          value={editForm.mother_name}
+                          onChange={(e) => setEditForm({...editForm, mother_name: e.target.value})}
+                          className="w-full px-4 py-2.5 border-2 rounded-lg focus:border-pink-600 focus:outline-none"
+                          placeholder="Trần Thị C"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm mb-1 text-gray-700">Số điện thoại</label>
+                        <input
+                          type="tel"
+                          value={editForm.mother_phone}
+                          onChange={(e) => setEditForm({...editForm, mother_phone: e.target.value})}
+                          className="w-full px-4 py-2.5 border-2 rounded-lg focus:border-pink-600 focus:outline-none"
+                          placeholder="0987654321"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm mb-1 text-gray-700">Email</label>
+                        <input
+                          type="email"
+                          value={editForm.mother_email}
+                          onChange={(e) => setEditForm({...editForm, mother_email: e.target.value})}
+                          className="w-full px-4 py-2.5 border-2 rounded-lg focus:border-pink-600 focus:outline-none"
+                          placeholder="email@example.com"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm mb-1 text-gray-700">Nghề nghiệp</label>
+                        <input
+                          type="text"
+                          value={editForm.mother_job}
+                          onChange={(e) => setEditForm({...editForm, mother_job: e.target.value})}
+                          className="w-full px-4 py-2.5 border-2 rounded-lg focus:border-pink-600 focus:outline-none"
+                          placeholder="Giáo viên, Nhân viên..."
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-sm mb-1 text-gray-700">Nơi làm việc</label>
+                        <input
+                          type="text"
+                          value={editForm.mother_workplace}
+                          onChange={(e) => setEditForm({...editForm, mother_workplace: e.target.value})}
+                          className="w-full px-4 py-2.5 border-2 rounded-lg focus:border-pink-600 focus:outline-none"
+                          placeholder="Trường XYZ"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Guardian */}
+                  <div className="bg-green-50 rounded-xl p-6 border-2 border-green-200">
+                    <h4 className="font-bold text-green-900 mb-4 flex items-center gap-2">
+                      👤 Người Giám Hộ (nếu có)
+                    </h4>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm mb-1 text-gray-700">Họ tên</label>
+                        <input
+                          type="text"
+                          value={editForm.guardian_name}
+                          onChange={(e) => setEditForm({...editForm, guardian_name: e.target.value})}
+                          className="w-full px-4 py-2.5 border-2 rounded-lg focus:border-green-600 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm mb-1 text-gray-700">Số điện thoại</label>
+                        <input
+                          type="tel"
+                          value={editForm.guardian_phone}
+                          onChange={(e) => setEditForm({...editForm, guardian_phone: e.target.value})}
+                          className="w-full px-4 py-2.5 border-2 rounded-lg focus:border-green-600 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm mb-1 text-gray-700">Email</label>
+                        <input
+                          type="email"
+                          value={editForm.guardian_email}
+                          onChange={(e) => setEditForm({...editForm, guardian_email: e.target.value})}
+                          className="w-full px-4 py-2.5 border-2 rounded-lg focus:border-green-600 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm mb-1 text-gray-700">Quan hệ</label>
+                        <input
+                          type="text"
+                          value={editForm.guardian_relationship}
+                          onChange={(e) => setEditForm({...editForm, guardian_relationship: e.target.value})}
+                          className="w-full px-4 py-2.5 border-2 rounded-lg focus:border-green-600 focus:outline-none"
+                          placeholder="Ông, bà, anh, chị..."
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {profileTab === 'circumstances' && (
+                <div className="space-y-4">
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Tình trạng gia đình</label>
+                      <select
+                        value={editForm.family_status}
+                        onChange={(e) => setEditForm({...editForm, family_status: e.target.value})}
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-600 focus:outline-none"
+                      >
+                        <option value="">Chọn</option>
+                        <option value="complete">Đầy đủ</option>
+                        <option value="single_parent">Cha/Mẹ đơn thân</option>
+                        <option value="orphan">Mồ côi</option>
+                        <option value="other">Khác</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Hoàn cảnh kinh tế</label>
+                      <select
+                        value={editForm.economic_status}
+                        onChange={(e) => setEditForm({...editForm, economic_status: e.target.value})}
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-600 focus:outline-none"
+                      >
+                        <option value="">Chọn</option>
+                        <option value="poor">Nghèo</option>
+                        <option value="near_poor">Cận nghèo</option>
+                        <option value="average">Trung bình</option>
+                        <option value="good">Khá giả</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Hoàn cảnh đặc biệt</label>
+                    <textarea
+                      value={editForm.special_circumstances}
+                      onChange={(e) => setEditForm({...editForm, special_circumstances: e.target.value})}
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-600 focus:outline-none"
+                      rows="3"
+                      placeholder="Mô tả hoàn cảnh đặc biệt nếu có (mồ côi, khuyết tật...)"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Ghi chú sức khỏe</label>
+                    <textarea
+                      value={editForm.health_notes}
+                      onChange={(e) => setEditForm({...editForm, health_notes: e.target.value})}
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-600 focus:outline-none"
+                      rows="3"
+                      placeholder="Các vấn đề sức khỏe cần lưu ý..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Dị ứng</label>
+                    <input
+                      type="text"
+                      value={editForm.allergies}
+                      onChange={(e) => setEditForm({...editForm, allergies: e.target.value})}
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-600 focus:outline-none"
+                      placeholder="Dị ứng thực phẩm, thuốc men..."
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex gap-3 p-6 border-t bg-gray-50">
               <button
-                onClick={() => setShowEditProfileModal(false)}
-                className="flex-1 border-2 border-gray-300 text-gray-700 py-3 rounded-xl hover:bg-gray-50 font-medium transition-colors"
+                onClick={() => {
+                  setShowEditProfileModal(false);
+                  setProfileTab('basic'); // Reset tab on close
+                }}
+                className="flex-1 border-2 border-gray-300 text-gray-700 py-3 rounded-xl hover:bg-white font-medium transition-colors"
               >
                 Hủy bỏ
               </button>
@@ -1452,11 +1948,14 @@ function UserProfileContent() {
         </div>
       )}
 
-      {/* ✅ ENHANCED: Add Score Modal with Validation */}
+      {/* ENHANCED: Add Score Modal with Validation */}
       {showAddScoreModal && (
         <div
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-          onClick={() => setShowAddScoreModal(false)}
+          onClick={() => {
+            setShowAddScoreModal(false);
+            setScoreErrors({}); // Clear score errors on modal close
+          }}
         >
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
@@ -1469,7 +1968,10 @@ function UserProfileContent() {
                 <Plus className="w-6 h-6 text-indigo-600" />
                 Thêm Điểm Mới
               </h3>
-              <button onClick={() => setShowAddScoreModal(false)}>
+              <button onClick={() => {
+                setShowAddScoreModal(false);
+                setScoreErrors({});
+              }}>
                 <X className="w-6 h-6 text-gray-400 hover:text-gray-600" />
               </button>
             </div>
@@ -1551,9 +2053,14 @@ function UserProfileContent() {
                       max="10"
                       value={scoreForm.midterm_score}
                       onChange={(e) => handleScoreChange('midterm_score', e.target.value)}
+                      className={`w-full px-4 py-2.5 border-2 rounded-lg focus:outline-none text-center font-bold text-lg ${
+                        scoreErrors.midterm_score ? 'border-red-500 focus:border-red-600' : 'border-gray-200 focus:border-blue-600'
+                      }`}
                       placeholder="0.0 - 10.0"
-                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:border-blue-600 focus:outline-none text-center font-bold text-lg"
                     />
+                    {scoreErrors.midterm_score && (
+                      <p className="text-xs text-red-600 mt-1">{scoreErrors.midterm_score}</p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-xs font-medium mb-1 text-gray-600">Điểm cuối kỳ *</label>
@@ -1564,17 +2071,23 @@ function UserProfileContent() {
                       max="10"
                       value={scoreForm.final_score}
                       onChange={(e) => handleScoreChange('final_score', e.target.value)}
+                      className={`w-full px-4 py-2.5 border-2 rounded-lg focus:outline-none text-center font-bold text-lg ${
+                        scoreErrors.final_score ? 'border-red-500 focus:border-red-600' : 'border-gray-200 focus:border-purple-600'
+                      }`}
                       placeholder="0.0 - 10.0"
-                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:border-purple-600 focus:outline-none text-center font-bold text-lg"
                     />
+                    {scoreErrors.final_score && (
+                      <p className="text-xs text-red-600 mt-1">{scoreErrors.final_score}</p>
+                    )}
                   </div>
                 </div>
-                <p className="text-xs text-gray-600 mt-2 text-center">
-                  ⚠️ Điểm phải từ 0.0 đến 10.0
-                </p>
+                <div className="flex items-center gap-2 mt-2 text-xs text-gray-600 bg-white rounded-lg p-2">
+                  <AlertCircle className="w-4 h-4 text-yellow-600" />
+                  <span>Nhập số thập phân (VD: 8.5, 7.0, 9.25)</span>
+                </div>
               </div>
 
-              {scoreForm.average_score && (
+              {scoreForm.average_score && !scoreErrors.midterm_score && !scoreErrors.final_score && (
                 <div className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl p-5">
                   <div className="flex items-center justify-between">
                     <div>
@@ -1596,7 +2109,10 @@ function UserProfileContent() {
 
             <div className="flex gap-3 mt-6 pt-4 border-t sticky bottom-0 bg-white">
               <button
-                onClick={() => setShowAddScoreModal(false)}
+                onClick={() => {
+                  setShowAddScoreModal(false);
+                  setScoreErrors({});
+                }}
                 className="flex-1 border-2 border-gray-300 text-gray-700 py-3 rounded-xl hover:bg-gray-50 font-medium transition-colors"
               >
                 Hủy bỏ
@@ -1604,13 +2120,13 @@ function UserProfileContent() {
               <button
                 onClick={() => addScoreMutation.mutate(scoreForm)}
                 disabled={
-                  addScoreMutation.isPending || 
-                  !scoreForm.subject_code || 
-                  !scoreForm.academic_year_id || 
-                  scoreForm.midterm_score === '' || 
+                  addScoreMutation.isPending ||
+                  !scoreForm.subject_code ||
+                  !scoreForm.academic_year_id ||
+                  scoreForm.midterm_score === '' ||
                   scoreForm.final_score === '' ||
-                  !validateScore(scoreForm.midterm_score) ||
-                  !validateScore(scoreForm.final_score)
+                  scoreErrors.midterm_score || // Disable if there's a midterm score error
+                  scoreErrors.final_score    // Disable if there's a final score error
                 }
                 className="flex-1 bg-indigo-600 text-white py-3 rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors shadow-md flex items-center justify-center gap-2"
               >
