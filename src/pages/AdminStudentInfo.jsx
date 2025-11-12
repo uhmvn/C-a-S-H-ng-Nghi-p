@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams, Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import AdminLayout from "@/components/AdminLayout";
-import { 
+import {
   User, Search, Edit2, Save, X, Phone, MapPin, Users,
   Calendar, Heart, AlertCircle, Briefcase, Home, Mail, ArrowLeft, Camera
 } from "lucide-react";
@@ -16,7 +16,7 @@ export default function AdminStudentInfo() {
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const studentIdFromUrl = searchParams.get('student');
-  
+
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -27,7 +27,8 @@ export default function AdminStudentInfo() {
     queryKey: ['students-info'],
     queryFn: async () => {
       const all = await base44.entities.UserProfile.list('-created_date', 500);
-      return (all || []).filter(p => p.role === 'student');
+      const allArray = Array.isArray(all) ? all : []; // ✅ SAFETY CHECK
+      return allArray.filter(p => p.role === 'student');
     },
     initialData: []
   });
@@ -36,7 +37,8 @@ export default function AdminStudentInfo() {
     queryKey: ['users'],
     queryFn: async () => {
       try {
-        return await base44.entities.User.list('-created_date', 500) || [];
+        const data = await base44.entities.User.list('-created_date', 500);
+        return Array.isArray(data) ? data : []; // ✅ SAFETY CHECK
       } catch (error) {
         return [];
       }
@@ -58,11 +60,10 @@ export default function AdminStudentInfo() {
   // ✅ NEW STRATEGY: Get full_name from UserProfile directly
   useEffect(() => {
     if (selectedStudent && !isEditing) {
-      console.log('🔄 [AdminStudentInfo] Setting formData (NEW: full_name from UserProfile)');
-      console.log('👤 Student data:', selectedStudent);
+      console.log('🔄 [AdminStudentInfo] Setting formData');
       setFormData({
         ...selectedStudent,
-        full_name: selectedStudent.full_name || '' // ✅ From UserProfile
+        full_name: selectedStudent.full_name || ''
       });
     }
   }, [selectedStudent, isEditing]);
@@ -70,62 +71,48 @@ export default function AdminStudentInfo() {
   // ✅ NEW STRATEGY: Update mutation - full_name goes to UserProfile
   const updateMutation = useMutation({
     mutationFn: async ({ profileData, fullName, avatarUrl }) => {
-      console.log('🔄 [AdminStudentInfo] Mutation START (NEW STRATEGY)');
+      console.log('🔄 [AdminStudentInfo] Mutation START');
       console.log('📝 Full name:', fullName);
-      console.log('📦 Profile data:', profileData);
-      
+
       if (!fullName || fullName.trim() === '') {
         throw new Error('Họ và tên không được để trống');
       }
-      
+
       // ✅ NEW: Update UserProfile with full_name included
-      const updateData = { 
+      const updateData = {
         ...profileData,
-        full_name: fullName // ✅ Save to UserProfile
+        full_name: fullName
       };
-      
+
       if (avatarUrl) {
         updateData.avatar_url = avatarUrl;
       }
-      
-      console.log('📝 Updating UserProfile (WITH full_name):', updateData);
-      try {
-        const result = await base44.entities.UserProfile.update(selectedStudent.id, updateData);
-        console.log('✅ UserProfile updated (with full_name):', result);
-        return result;
-      } catch (error) {
-        console.error('❌ Failed to update UserProfile:', error);
-        throw new Error('Không thể cập nhật profile: ' + error.message);
-      }
+
+      console.log('📝 Updating UserProfile:', updateData);
+      const result = await base44.entities.UserProfile.update(selectedStudent.id, updateData);
+      console.log('✅ UserProfile updated:', result);
+      return result;
     },
     onSuccess: async (updatedProfile) => {
       console.log('✅ [AdminStudentInfo] Mutation SUCCESS');
-      console.log('📦 Updated profile:', updatedProfile);
-      
-      try {
-        await queryClient.invalidateQueries({ queryKey: ['students-info'] });
-        await queryClient.invalidateQueries({ queryKey: ['studentProfiles'] });
-        
-        // ✅ Update selectedStudent immediately
-        console.log('✅ Updating selectedStudent with new full_name:', updatedProfile.full_name);
-        setSelectedStudent(updatedProfile);
-        
-        // ✅ Update formData if not editing
-        if (!isEditing) {
-          setFormData({
-            ...updatedProfile,
-            full_name: updatedProfile.full_name || ''
-          });
-        }
-        
-        console.log('✅ All updates completed');
-        toast.success('✅ Đã cập nhật thông tin!');
-        setIsEditing(false);
-        setAvatarFile(null);
-      } catch (error) {
-        console.error('❌ Error refreshing data:', error);
-        toast.error('⚠️ Đã lưu nhưng không thể làm mới. Vui lòng reload trang.');
+
+      await queryClient.invalidateQueries({ queryKey: ['students-info'] });
+      await queryClient.invalidateQueries({ queryKey: ['studentProfiles'] });
+
+      // ✅ Update selectedStudent immediately
+      setSelectedStudent(updatedProfile);
+
+      // ✅ Update formData if not editing
+      if (!isEditing) {
+        setFormData({
+          ...updatedProfile,
+          full_name: updatedProfile.full_name || ''
+        });
       }
+
+      toast.success('✅ Đã cập nhật thông tin!');
+      setIsEditing(false);
+      setAvatarFile(null);
     },
     onError: (error) => {
       console.error('❌ [AdminStudentInfo] Mutation ERROR:', error);
@@ -137,19 +124,17 @@ export default function AdminStudentInfo() {
     if (!s) return false;
     if (!searchTerm) return true;
     const search = searchTerm.toLowerCase();
-    const user = (users || []).find(u => u && u.id === s.user_id);
-    const name = user?.full_name || s.user_code || '';
-    return name.toLowerCase().includes(search) || 
+    const name = s.full_name || s.user_code || '';
+    return name.toLowerCase().includes(search) ||
            s.user_code?.toLowerCase().includes(search) ||
            s.class_name?.toLowerCase().includes(search);
   });
 
   const handleEdit = (student) => {
-    // const user = (users || []).find(u => u && u.id === student.user_id); // Removed from original logic
     setSelectedStudent(student);
     setFormData({
       ...student,
-      full_name: student.full_name || '' // Use student.full_name directly
+      full_name: student.full_name || ''
     });
     setIsEditing(true);
     setAvatarFile(null);
@@ -157,34 +142,29 @@ export default function AdminStudentInfo() {
 
   const handleSave = async () => {
     try {
-      console.log('🔄 [AdminStudentInfo] Starting save process...');
-      console.log('📦 Form data:', formData);
-      
+      console.log('🔄 [AdminStudentInfo] Starting save...');
+
       if (!formData.full_name || formData.full_name.trim() === '') {
         toast.error('❌ Họ và tên không được để trống');
         return;
       }
-      
+
       let avatarUrl = selectedStudent.avatar_url;
-      
+
       // Upload avatar if changed
       if (avatarFile) {
         toast.loading('Đang tải ảnh...', { id: 'avatar' });
         const { file_url } = await base44.integrations.Core.UploadFile({ file: avatarFile });
         avatarUrl = file_url;
-        console.log('✅ Avatar uploaded:', file_url);
         toast.success('Tải ảnh thành công!', { id: 'avatar' });
       }
-      
+
       // ✅ CRITICAL: Separate full_name and clean built-in fields
-      const { 
-        full_name, user_id, id, created_date, updated_date, created_by, 
-        ...profileData 
+      const {
+        full_name, user_id, id, created_date, updated_date, created_by,
+        ...profileData
       } = formData;
-      
-      console.log('📝 Full name to save:', full_name);
-      console.log('📝 Profile data to save:', profileData);
-      
+
       updateMutation.mutate({
         profileData,
         fullName: full_name,
@@ -200,8 +180,8 @@ export default function AdminStudentInfo() {
   const getStudentName = (student) => {
     if (!student) return 'N/A';
     // ✅ Priority: UserProfile.full_name > User.full_name (fallback)
-    return student.full_name || 
-           (users || []).find(u => u && u.id === student.user_id)?.full_name || 
+    return student.full_name ||
+           (users || []).find(u => u && u.id === student.user_id)?.full_name ||
            student.user_code || 'N/A';
   };
 
@@ -219,7 +199,7 @@ export default function AdminStudentInfo() {
     <AdminLayout>
       <Toaster position="top-right" />
       <div className="p-6 lg:p-8">
-        
+
         <div className="mb-8">
           <div className="flex items-center gap-4 mb-4">
             <Link
@@ -231,11 +211,11 @@ export default function AdminStudentInfo() {
             </Link>
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">👨‍👩‍👧‍👦 Thông Tin Học Sinh & Phụ Huynh</h1>
-          <p className="text-gray-600">Quản lý thông tin cá nhân và gia đình học sinh (đồng bộ với UserProfile)</p>
+          <p className="text-gray-600">Quản lý thông tin cá nhân và gia đình học sinh</p>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
-          
+
           {/* Student List */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-2xl shadow-sm border p-6">
@@ -267,7 +247,7 @@ export default function AdminStudentInfo() {
                     if (!student) return null;
                     const completion = calculateCompletion(student);
                     const isSelected = selectedStudent?.id === student.id;
-                    
+
                     return (
                       <motion.div
                         key={student.id}
@@ -279,8 +259,8 @@ export default function AdminStudentInfo() {
                           setIsEditing(false);
                         }}
                         className={`p-4 rounded-xl cursor-pointer transition-all ${
-                          isSelected 
-                            ? 'bg-indigo-50 border-2 border-indigo-600' 
+                          isSelected
+                            ? 'bg-indigo-50 border-2 border-indigo-600'
                             : 'border-2 border-transparent hover:bg-gray-50'
                         }`}
                       >
@@ -323,7 +303,7 @@ export default function AdminStudentInfo() {
               </div>
             ) : (
               <div className="space-y-6">
-                
+
                 {/* Header with Avatar */}
                 <div className="bg-white rounded-2xl shadow-sm border p-6">
                   <div className="flex items-center justify-between mb-4">
@@ -359,7 +339,7 @@ export default function AdminStudentInfo() {
                           </label>
                         )}
                       </div>
-                      
+
                       <div>
                         {isEditing ? (
                           <input
@@ -375,17 +355,16 @@ export default function AdminStudentInfo() {
                         <p className="text-gray-600">{selectedStudent.user_code || 'N/A'}</p>
                       </div>
                     </div>
-                    
+
                     <div className="flex gap-2">
                       {isEditing ? (
                         <>
                           <button
                             onClick={() => {
                               setIsEditing(false);
-                              // const user = (users || []).find(u => u && u.id === selectedStudent.user_id); // Original logic
                               setFormData({
                                 ...selectedStudent,
-                                full_name: selectedStudent.full_name || '' // Use selectedStudent.full_name
+                                full_name: selectedStudent.full_name || ''
                               });
                               setAvatarFile(null);
                             }}
@@ -515,7 +494,7 @@ export default function AdminStudentInfo() {
                              field === 'father_phone' ? '📱 SĐT' :
                              field === 'father_email' ? '📧 Email' :
                              field === 'father_job' ? '💼 Nghề nghiệp' :
-                             field === 'father_workplace' ? '🏢 Nơi làm việc' : field}
+                             '🏢 Nơi làm việc'}
                           </label>
                           {isEditing ? (
                             <input
@@ -545,7 +524,7 @@ export default function AdminStudentInfo() {
                              field === 'mother_phone' ? '📱 SĐT' :
                              field === 'mother_email' ? '📧 Email' :
                              field === 'mother_job' ? '💼 Nghề nghiệp' :
-                             field === 'mother_workplace' ? '🏢 Nơi làm việc' : field}
+                             '🏢 Nơi làm việc'}
                           </label>
                           {isEditing ? (
                             <input
@@ -574,7 +553,7 @@ export default function AdminStudentInfo() {
                             {field === 'guardian_name' ? 'Họ tên' :
                              field === 'guardian_phone' ? '📱 SĐT' :
                              field === 'guardian_email' ? '📧 Email' :
-                             field === 'guardian_relationship' ? '👥 Quan hệ' : field}
+                             '👥 Quan hệ'}
                           </label>
                           {isEditing ? (
                             <input
@@ -667,7 +646,6 @@ export default function AdminStudentInfo() {
                           onChange={(e) => setFormData({...formData, health_notes: e.target.value})}
                           className="w-full px-3 py-2 border rounded-lg"
                           rows={2}
-                          placeholder="Ghi chú sức khỏe, dị ứng, thuốc men..."
                         />
                       ) : (
                         <p className="font-medium">{selectedStudent.health_notes || 'Không'}</p>

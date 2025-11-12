@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import {
@@ -28,35 +27,43 @@ function StudentManagementContent() {
   const [filterGrade, setFilterGrade] = useState("all");
   const [filterClass, setFilterClass] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
-  const [viewMode, setViewMode] = useState('grid'); // grid, list, table
+  const [viewMode, setViewMode] = useState('grid');
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false });
-  const [editForm, setEditForm] = {};
+  const [editForm, setEditForm] = useState({}); // ✅ FIXED: Initialized as object
 
   const { data: profiles = [], isLoading: profilesLoading } = useQuery({
     queryKey: ['studentProfiles'],
     queryFn: async () => {
       const allProfiles = await base44.entities.UserProfile.list('-created_date', 1000);
-      return allProfiles.filter(p => p.role === 'student');
+      const profilesArray = Array.isArray(allProfiles) ? allProfiles : []; // ✅ SAFETY CHECK
+      return profilesArray.filter(p => p.role === 'student');
     },
     initialData: [],
   });
 
   const { data: users = [] } = useQuery({
     queryKey: ['users'],
-    queryFn: () => base44.entities.User.list('-created_date', 1000),
+    queryFn: async () => {
+      const data = await base44.entities.User.list('-created_date', 1000);
+      return Array.isArray(data) ? data : []; // ✅ SAFETY CHECK
+    },
     initialData: [],
   });
 
   const { data: testResults = [] } = useQuery({
     queryKey: ['testResults'],
-    queryFn: () => base44.entities.TestResult.list('-completed_date', 500),
+    queryFn: async () => {
+      const data = await base44.entities.TestResult.list('-completed_date', 500);
+      return Array.isArray(data) ? data : []; // ✅ SAFETY CHECK
+    },
     initialData: [],
   });
 
   const studentsWithUsers = useMemo(() => {
+    if (!Array.isArray(profiles)) return []; // ✅ SAFETY CHECK
     return profiles.map(profile => {
       const user = users.find(u => u.id === profile.user_id);
       const studentTests = testResults.filter(t => t.user_id === profile.user_id);
@@ -69,7 +76,7 @@ function StudentManagementContent() {
       const matchesSearch = !searchTerm ||
         student.user?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         student.user?.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        student.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) || // Added user profile full_name to search
+        student.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         student.user_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         student.student_id?.toLowerCase().includes(searchTerm.toLowerCase());
 
@@ -98,7 +105,6 @@ function StudentManagementContent() {
     };
   }, [profiles]);
 
-  // ✅ CRITICAL FIX: Update with proper data cleaning
   const updateProfileMutation = useMutation({
     mutationFn: async ({ profileId, data }) => {
       console.log('📝 StudentManagement: Updating profile', profileId, data);
@@ -138,7 +144,7 @@ function StudentManagementContent() {
   const handleEdit = (student) => {
     setSelectedStudent(student);
     setEditForm({
-      full_name: student.full_name || '', // Add full_name to edit form
+      full_name: student.full_name || '',
       school_name: student.school_name || '',
       class_name: student.class_name || '',
       grade_level: student.grade_level || '',
@@ -238,7 +244,6 @@ function StudentManagementContent() {
           </div>
         </div>
 
-        {/* Filters + View Mode Toggle */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border mb-6">
           <div className="flex items-center justify-between mb-4">
             <div className="grid md:grid-cols-4 gap-4 flex-1">
@@ -284,14 +289,12 @@ function StudentManagementContent() {
               </select>
             </div>
 
-            {/* View Mode Toggle */}
             <div className="flex gap-2 bg-gray-100 p-1 rounded-lg ml-4">
               <button
                 onClick={() => setViewMode('grid')}
                 className={`p-2 rounded-lg transition-colors ${
                   viewMode === 'grid' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-600'
                 }`}
-                title="Grid View"
               >
                 <Grid3x3 className="w-5 h-5" />
               </button>
@@ -300,7 +303,6 @@ function StudentManagementContent() {
                 className={`p-2 rounded-lg transition-colors ${
                   viewMode === 'list' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-600'
                 }`}
-                title="List View"
               >
                 <List className="w-5 h-5" />
               </button>
@@ -309,7 +311,6 @@ function StudentManagementContent() {
                 className={`p-2 rounded-lg transition-colors ${
                   viewMode === 'table' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-600'
                 }`}
-                title="Table View"
               >
                 <Table2 className="w-5 h-5" />
               </button>
@@ -328,7 +329,6 @@ function StudentManagementContent() {
           </div>
         ) : (
           <>
-            {/* Grid View */}
             {viewMode === 'grid' && (
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredStudents.map((student) => (
@@ -345,7 +345,6 @@ function StudentManagementContent() {
                             <Users className="w-6 h-6 text-indigo-600" />
                           </div>
                           <div>
-                            {/* ✅ Priority: UserProfile.full_name > User.full_name */}
                             <h3 className="font-bold text-gray-900">
                               {student.full_name || student.user?.full_name || 'Chưa có tên'}
                             </h3>
@@ -429,7 +428,6 @@ function StudentManagementContent() {
               </div>
             )}
 
-            {/* List View */}
             {viewMode === 'list' && (
               <div className="space-y-4">
                 {filteredStudents.map((student) => (
@@ -445,7 +443,6 @@ function StudentManagementContent() {
                     
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-3 mb-2">
-                        {/* ✅ Priority: UserProfile.full_name > User.full_name */}
                         <h3 className="font-bold text-lg text-gray-900">
                           {student.full_name || student.user?.full_name || 'Chưa có tên'}
                         </h3>
@@ -479,28 +476,24 @@ function StudentManagementContent() {
                       <button
                         onClick={() => handleView(student)}
                         className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
-                        title="Xem"
                       >
                         <Eye className="w-5 h-5" />
                       </button>
                       <button
                         onClick={() => handleEdit(student)}
                         className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg"
-                        title="Sửa"
                       >
                         <Edit2 className="w-5 h-5" />
                       </button>
                       <Link
                         to={`${createPageUrl("AdminStudentInfo")}?student=${student.id}`}
                         className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg"
-                        title="Chi tiết"
                       >
                         <Users className="w-5 h-5" />
                       </Link>
                       <button
                         onClick={() => handleDelete(student)}
                         className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-                        title="Xóa"
                       >
                         <Trash2 className="w-5 h-5" />
                       </button>
@@ -510,7 +503,6 @@ function StudentManagementContent() {
               </div>
             )}
 
-            {/* Table View */}
             {viewMode === 'table' && (
               <div className="bg-white rounded-2xl shadow-lg border overflow-x-auto">
                 <table className="w-full">
@@ -534,7 +526,6 @@ function StudentManagementContent() {
                               <Users className="w-5 h-5 text-indigo-600" />
                             </div>
                             <div>
-                              {/* ✅ Priority: UserProfile.full_name > User.full_name */}
                               <p className="font-bold text-gray-900">
                                 {student.full_name || student.user?.full_name || 'Chưa có tên'}
                               </p>
@@ -602,7 +593,6 @@ function StudentManagementContent() {
           </>
         )}
 
-        {/* View Modal */}
         {isViewModalOpen && selectedStudent && (
           <div
             className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
@@ -636,7 +626,6 @@ function StudentManagementContent() {
                     <Users className="w-8 h-8 text-indigo-600" />
                   </div>
                   <div>
-                    {/* ✅ Priority: UserProfile.full_name > User.full_name */}
                     <h4 className="text-xl font-bold">
                       {selectedStudent.full_name || selectedStudent.user?.full_name || 'Chưa có tên'}
                     </h4>
@@ -693,7 +682,6 @@ function StudentManagementContent() {
           </div>
         )}
 
-        {/* Edit Modal */}
         {isEditModalOpen && selectedStudent && (
           <div
             className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
@@ -717,7 +705,7 @@ function StudentManagementContent() {
                   <label className="block text-sm font-medium mb-2">Họ và tên</label>
                   <input
                     type="text"
-                    value={editForm.full_name}
+                    value={editForm.full_name || ''}
                     onChange={(e) => setEditForm({...editForm, full_name: e.target.value})}
                     className="w-full px-4 py-2 border rounded-lg"
                   />
@@ -727,7 +715,7 @@ function StudentManagementContent() {
                     <label className="block text-sm font-medium mb-2">Trường</label>
                     <input
                       type="text"
-                      value={editForm.school_name}
+                      value={editForm.school_name || ''}
                       onChange={(e) => setEditForm({...editForm, school_name: e.target.value})}
                       className="w-full px-4 py-2 border rounded-lg"
                     />
@@ -736,7 +724,7 @@ function StudentManagementContent() {
                     <label className="block text-sm font-medium mb-2">Lớp</label>
                     <input
                       type="text"
-                      value={editForm.class_name}
+                      value={editForm.class_name || ''}
                       onChange={(e) => setEditForm({...editForm, class_name: e.target.value})}
                       className="w-full px-4 py-2 border rounded-lg"
                     />
@@ -747,7 +735,7 @@ function StudentManagementContent() {
                   <div>
                     <label className="block text-sm font-medium mb-2">Khối</label>
                     <select
-                      value={editForm.grade_level}
+                      value={editForm.grade_level || ''}
                       onChange={(e) => setEditForm({...editForm, grade_level: e.target.value})}
                       className="w-full px-4 py-2 border rounded-lg"
                     >
@@ -761,7 +749,7 @@ function StudentManagementContent() {
                     <label className="block text-sm font-medium mb-2">Mã số học sinh</label>
                     <input
                       type="text"
-                      value={editForm.student_id}
+                      value={editForm.student_id || ''}
                       onChange={(e) => setEditForm({...editForm, student_id: e.target.value})}
                       className="w-full px-4 py-2 border rounded-lg"
                     />
@@ -773,7 +761,7 @@ function StudentManagementContent() {
                     <label className="block text-sm font-medium mb-2">SĐT Phụ huynh</label>
                     <input
                       type="text"
-                      value={editForm.parent_phone}
+                      value={editForm.parent_phone || ''}
                       onChange={(e) => setEditForm({...editForm, parent_phone: e.target.value})}
                       className="w-full px-4 py-2 border rounded-lg"
                     />
@@ -781,7 +769,7 @@ function StudentManagementContent() {
                   <div>
                     <label className="block text-sm font-medium mb-2">Trạng thái</label>
                     <select
-                      value={editForm.status}
+                      value={editForm.status || 'active'}
                       onChange={(e) => setEditForm({...editForm, status: e.target.value})}
                       className="w-full px-4 py-2 border rounded-lg"
                     >
