@@ -55,58 +55,43 @@ export default function AdminStudentInfo() {
     }
   }, [studentIdFromUrl, students, selectedStudent]);
 
-  // ✅ CRITICAL FIX: Reset formData when selectedStudent changes
+  // ✅ NEW STRATEGY: Get full_name from UserProfile directly
   useEffect(() => {
     if (selectedStudent && !isEditing) {
-      const user = (users || []).find(u => u && u.id === selectedStudent.user_id);
-      console.log('🔄 [AdminStudentInfo] Setting formData for student:', selectedStudent.id);
-      console.log('👤 User data:', user);
+      console.log('🔄 [AdminStudentInfo] Setting formData (NEW: full_name from UserProfile)');
+      console.log('👤 Student data:', selectedStudent);
       setFormData({
         ...selectedStudent,
-        full_name: user?.full_name || ''
+        full_name: selectedStudent.full_name || '' // ✅ From UserProfile
       });
     }
-  }, [selectedStudent, users, isEditing]);
+  }, [selectedStudent, isEditing]);
 
-  // ✅ CRITICAL FIX: Update mutation with proper validation
+  // ✅ NEW STRATEGY: Update mutation - full_name goes to UserProfile
   const updateMutation = useMutation({
     mutationFn: async ({ profileData, fullName, avatarUrl }) => {
-      console.log('🔄 [AdminStudentInfo] Mutation START');
-      console.log('📦 Profile data:', profileData);
+      console.log('🔄 [AdminStudentInfo] Mutation START (NEW STRATEGY)');
       console.log('📝 Full name:', fullName);
-      console.log('🖼️ Avatar URL:', avatarUrl);
-      console.log('👤 Student user_id:', selectedStudent.user_id);
+      console.log('📦 Profile data:', profileData);
       
       if (!fullName || fullName.trim() === '') {
         throw new Error('Họ và tên không được để trống');
       }
       
-      if (!selectedStudent.user_id) {
-        throw new Error('Không tìm thấy user_id của học sinh');
-      }
+      // ✅ NEW: Update UserProfile with full_name included
+      const updateData = { 
+        ...profileData,
+        full_name: fullName // ✅ Save to UserProfile
+      };
       
-      // ✅ Step 1: Update User.full_name
-      console.log('📝 Updating User.full_name...');
-      try {
-        await base44.entities.User.update(selectedStudent.user_id, {
-          full_name: fullName
-        });
-        console.log('✅ User.full_name updated successfully');
-      } catch (error) {
-        console.error('❌ Failed to update User.full_name:', error);
-        throw new Error('Không thể cập nhật tên: ' + error.message);
-      }
-      
-      // ✅ Step 2: Update UserProfile (without full_name)
-      const updateData = { ...profileData };
       if (avatarUrl) {
         updateData.avatar_url = avatarUrl;
       }
       
-      console.log('📝 Updating UserProfile with:', updateData);
+      console.log('📝 Updating UserProfile (WITH full_name):', updateData);
       try {
         const result = await base44.entities.UserProfile.update(selectedStudent.id, updateData);
-        console.log('✅ UserProfile updated:', result);
+        console.log('✅ UserProfile updated (with full_name):', result);
         return result;
       } catch (error) {
         console.error('❌ Failed to update UserProfile:', error);
@@ -118,30 +103,19 @@ export default function AdminStudentInfo() {
       console.log('📦 Updated profile:', updatedProfile);
       
       try {
-        // ✅ Invalidate queries
         await queryClient.invalidateQueries({ queryKey: ['students-info'] });
-        await queryClient.invalidateQueries({ queryKey: ['users'] });
+        await queryClient.invalidateQueries({ queryKey: ['studentProfiles'] });
         
-        // ✅ CRITICAL: Update selectedStudent with fresh data
-        console.log('🔄 Fetching fresh student data...');
-        const freshProfiles = await base44.entities.UserProfile.filter({ id: selectedStudent.id });
-        const freshUsers = await base44.entities.User.filter({ id: selectedStudent.user_id });
+        // ✅ Update selectedStudent immediately
+        console.log('✅ Updating selectedStudent with new full_name:', updatedProfile.full_name);
+        setSelectedStudent(updatedProfile);
         
-        if (freshProfiles && freshProfiles.length > 0) {
-          const freshStudent = freshProfiles[0];
-          console.log('✅ Fresh student data:', freshStudent);
-          setSelectedStudent(freshStudent);
-          
-          // ✅ Update formData with fresh user full_name
-          const freshUser = freshUsers && freshUsers.length > 0 ? freshUsers[0] : null;
-          console.log('✅ Fresh user data:', freshUser);
-          
-          if (!isEditing) { // Only reset formData if not currently editing (user cancelled or saved)
-            setFormData({
-              ...freshStudent,
-              full_name: freshUser?.full_name || ''
-            });
-          }
+        // ✅ Update formData if not editing
+        if (!isEditing) {
+          setFormData({
+            ...updatedProfile,
+            full_name: updatedProfile.full_name || ''
+          });
         }
         
         console.log('✅ All updates completed');
@@ -171,11 +145,11 @@ export default function AdminStudentInfo() {
   });
 
   const handleEdit = (student) => {
-    const user = (users || []).find(u => u && u.id === student.user_id);
+    // const user = (users || []).find(u => u && u.id === student.user_id); // Removed from original logic
     setSelectedStudent(student);
     setFormData({
       ...student,
-      full_name: user?.full_name || ''
+      full_name: student.full_name || '' // Use student.full_name directly
     });
     setIsEditing(true);
     setAvatarFile(null);
@@ -222,10 +196,13 @@ export default function AdminStudentInfo() {
     }
   };
 
+  // ✅ NEW: Get full_name from UserProfile directly
   const getStudentName = (student) => {
     if (!student) return 'N/A';
-    const user = (users || []).find(u => u && u.id === student.user_id);
-    return user?.full_name || student.user_code || 'N/A';
+    // ✅ Priority: UserProfile.full_name > User.full_name (fallback)
+    return student.full_name || 
+           (users || []).find(u => u && u.id === student.user_id)?.full_name || 
+           student.user_code || 'N/A';
   };
 
   const calculateCompletion = (student) => {
@@ -405,10 +382,10 @@ export default function AdminStudentInfo() {
                           <button
                             onClick={() => {
                               setIsEditing(false);
-                              const user = (users || []).find(u => u && u.id === selectedStudent.user_id);
+                              // const user = (users || []).find(u => u && u.id === selectedStudent.user_id); // Original logic
                               setFormData({
                                 ...selectedStudent,
-                                full_name: user?.full_name || ''
+                                full_name: selectedStudent.full_name || '' // Use selectedStudent.full_name
                               });
                               setAvatarFile(null);
                             }}

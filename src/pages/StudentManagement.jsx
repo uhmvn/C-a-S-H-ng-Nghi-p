@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import {
@@ -32,7 +33,7 @@ function StudentManagementContent() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false });
-  const [editForm, setEditForm] = useState({});
+  const [editForm, setEditForm] = {};
 
   const { data: profiles = [], isLoading: profilesLoading } = useQuery({
     queryKey: ['studentProfiles'],
@@ -68,6 +69,7 @@ function StudentManagementContent() {
       const matchesSearch = !searchTerm ||
         student.user?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         student.user?.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        student.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) || // Added user profile full_name to search
         student.user_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         student.student_id?.toLowerCase().includes(searchTerm.toLowerCase());
 
@@ -136,6 +138,7 @@ function StudentManagementContent() {
   const handleEdit = (student) => {
     setSelectedStudent(student);
     setEditForm({
+      full_name: student.full_name || '', // Add full_name to edit form
       school_name: student.school_name || '',
       class_name: student.class_name || '',
       grade_level: student.grade_level || '',
@@ -159,7 +162,7 @@ function StudentManagementContent() {
     setConfirmDialog({
       isOpen: true,
       title: 'Xóa học sinh',
-      message: `Xóa học sinh ${student.user?.full_name || student.user_code}? Hành động này không thể hoàn tác.`,
+      message: `Xóa học sinh ${student.full_name || student.user?.full_name || student.user_code}? Hành động này không thể hoàn tác.`,
       type: 'danger',
       onConfirm: () => {
         deleteStudentMutation.mutate(student.id);
@@ -342,7 +345,10 @@ function StudentManagementContent() {
                             <Users className="w-6 h-6 text-indigo-600" />
                           </div>
                           <div>
-                            <h3 className="font-bold text-gray-900">{student.user?.full_name || 'Chưa có tên'}</h3>
+                            {/* ✅ Priority: UserProfile.full_name > User.full_name */}
+                            <h3 className="font-bold text-gray-900">
+                              {student.full_name || student.user?.full_name || 'Chưa có tên'}
+                            </h3>
                             <p className="text-sm text-gray-500">{student.user_code || 'Chưa có mã'}</p>
                           </div>
                         </div>
@@ -439,7 +445,10 @@ function StudentManagementContent() {
                     
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-3 mb-2">
-                        <h3 className="font-bold text-lg text-gray-900">{student.user?.full_name || 'Chưa có tên'}</h3>
+                        {/* ✅ Priority: UserProfile.full_name > User.full_name */}
+                        <h3 className="font-bold text-lg text-gray-900">
+                          {student.full_name || student.user?.full_name || 'Chưa có tên'}
+                        </h3>
                         <span className={`px-3 py-1 rounded-full text-xs ${
                           student.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                         }`}>
@@ -525,7 +534,10 @@ function StudentManagementContent() {
                               <Users className="w-5 h-5 text-indigo-600" />
                             </div>
                             <div>
-                              <p className="font-bold text-gray-900">{student.user?.full_name || 'Chưa có tên'}</p>
+                              {/* ✅ Priority: UserProfile.full_name > User.full_name */}
+                              <p className="font-bold text-gray-900">
+                                {student.full_name || student.user?.full_name || 'Chưa có tên'}
+                              </p>
                               <p className="text-xs text-gray-500">{student.user?.email}</p>
                             </div>
                           </div>
@@ -624,7 +636,10 @@ function StudentManagementContent() {
                     <Users className="w-8 h-8 text-indigo-600" />
                   </div>
                   <div>
-                    <h4 className="text-xl font-bold">{selectedStudent.user?.full_name || 'Chưa có tên'}</h4>
+                    {/* ✅ Priority: UserProfile.full_name > User.full_name */}
+                    <h4 className="text-xl font-bold">
+                      {selectedStudent.full_name || selectedStudent.user?.full_name || 'Chưa có tên'}
+                    </h4>
                     <p className="text-gray-600">{selectedStudent.user_code || 'Chưa có mã'}</p>
                   </div>
                 </div>
@@ -698,6 +713,15 @@ function StudentManagementContent() {
               </div>
 
               <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Họ và tên</label>
+                  <input
+                    type="text"
+                    value={editForm.full_name}
+                    onChange={(e) => setEditForm({...editForm, full_name: e.target.value})}
+                    className="w-full px-4 py-2 border rounded-lg"
+                  />
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium mb-2">Trường</label>

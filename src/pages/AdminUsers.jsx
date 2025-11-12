@@ -28,7 +28,7 @@ function AdminUsersContent() {
   const [filterRole, setFilterRole] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [selectedUser, setSelectedUser] = useState(null);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModal] = useState(false);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false });
   const [editForm, setEditForm] = useState({});
@@ -98,33 +98,10 @@ function AdminUsersContent() {
     cacheTime: 10 * 60 * 1000,
   });
 
-  // ✅ CRITICAL FIX: Update User mutation with logging
-  const updateUserMutation = useMutation({
-    mutationFn: async ({ userId, data }) => {
-      console.log('📝 [AdminUsers] Updating User:', userId, data);
-      
-      if (data.full_name && data.full_name.trim() === '') {
-        throw new Error('Họ và tên không được để trống');
-      }
-      
-      const result = await base44.entities.User.update(userId, data);
-      console.log('✅ [AdminUsers] User updated:', result);
-      return result;
-    },
-    onSuccess: async () => {
-      console.log('✅ [AdminUsers] User update success, invalidating cache...');
-      await queryClient.invalidateQueries({ queryKey: ['users'] });
-      console.log('✅ [AdminUsers] User cache invalidated');
-    },
-    onError: (error) => {
-      console.error('❌ [AdminUsers] User update error:', error);
-      throw error;
-    }
-  });
-
+  // ✅ NEW STRATEGY: Update UserProfile.full_name, NOT User.full_name
   const updateProfileMutation = useMutation({
     mutationFn: async ({ profileId, data }) => {
-      console.log('📝 [AdminUsers] Updating UserProfile:', profileId, data);
+      console.log('📝 [AdminUsers] Updating UserProfile (NEW: with full_name):', profileId, data);
       const result = await base44.entities.UserProfile.update(profileId, data);
       console.log('✅ [AdminUsers] UserProfile updated:', result);
       return result;
@@ -133,10 +110,29 @@ function AdminUsersContent() {
       console.log('✅ [AdminUsers] Profile update success, invalidating cache...');
       await queryClient.invalidateQueries({ queryKey: ['profiles'] });
       await queryClient.invalidateQueries({ queryKey: ['students-info'] });
+      await queryClient.invalidateQueries({ queryKey: ['studentProfiles'] });
       console.log('✅ [AdminUsers] Profile cache invalidated');
     },
     onError: (error) => {
       console.error('❌ [AdminUsers] Profile update error:', error);
+      throw error;
+    }
+  });
+
+  // ✅ Keep User mutation for role only
+  const updateUserMutation = useMutation({
+    mutationFn: async ({ userId, data }) => {
+      console.log('📝 [AdminUsers] Updating User (role only):', userId, data);
+      const result = await base44.entities.User.update(userId, data);
+      console.log('✅ [AdminUsers] User updated:', result);
+      return result;
+    },
+    onSuccess: async () => {
+      console.log('✅ [AdminUsers] User update success');
+      await queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+    onError: (error) => {
+      console.error('❌ [AdminUsers] User update error:', error);
       throw error;
     }
   });
@@ -156,6 +152,7 @@ function AdminUsersContent() {
       queryClient.invalidateQueries({ queryKey: ['users'] });
       queryClient.invalidateQueries({ queryKey: ['profiles'] });
       queryClient.invalidateQueries({ queryKey: ['students-info'] });
+      queryClient.invalidateQueries({ queryKey: ['studentProfiles'] }); // NEW: Invalidate studentProfiles
       toast.success('Xóa user thành công!');
     },
     onError: (error) => {
@@ -190,6 +187,7 @@ function AdminUsersContent() {
       queryClient.invalidateQueries({ queryKey: ['profiles'] });
       queryClient.invalidateQueries({ queryKey: ['availableCodes'] });
       queryClient.invalidateQueries({ queryKey: ['students-info'] });
+      queryClient.invalidateQueries({ queryKey: ['studentProfiles'] }); // NEW: Invalidate studentProfiles
       // toast.success('Cấp mã thành công!'); // Handled by handleSaveEdit
     },
     onError: (error) => {
@@ -210,7 +208,7 @@ function AdminUsersContent() {
     return usersWithProfiles.filter(user => {
       const matchesSearch = !searchTerm ||
         user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.full_name?.toLowerCase().includes(searchTerm.toLowerCase());
+        (user.profile?.full_name || user.full_name)?.toLowerCase().includes(searchTerm.toLowerCase()); // NEW: Search by profile full_name first
       
       const matchesRole = filterRole === "all" || user.profile?.role === filterRole;
       const matchesStatus = filterStatus === "all" || user.profile?.status === filterStatus;
@@ -231,7 +229,7 @@ function AdminUsersContent() {
   const handleEdit = (user) => {
     setSelectedUser(user);
     setEditForm({
-      full_name: user.full_name || '',
+      full_name: user.profile?.full_name || user.full_name || '', // ✅ Priority: UserProfile.full_name
       email: user.email || '',
       role: user.role || 'user',
       profile_role: user.profile?.role || 'student',
@@ -244,14 +242,14 @@ function AdminUsersContent() {
     setActiveTab('basic');
     setSelectedCodeId('');
     setShowSecretPreview(false);
-    setIsEditModalOpen(true);
+    setIsEditModal(true);
   };
 
   const handleSaveEdit = async () => {
     if (!selectedUser) return;
 
     try {
-      console.log('🔄 [AdminUsers] Starting save edit...');
+      console.log('🔄 [AdminUsers] Starting save edit (NEW STRATEGY)...');
       console.log('📦 Edit form:', editForm);
       
       if (!editForm.full_name || editForm.full_name.trim() === '') {
@@ -259,25 +257,27 @@ function AdminUsersContent() {
         return;
       }
       
-      // ✅ Step 1: Update User.full_name and role
-      console.log('📝 Step 1: Updating User entity...');
-      await updateUserMutation.mutateAsync({
-        userId: selectedUser.id,
-        data: {
-          full_name: editForm.full_name,
-          role: editForm.role
-        }
-      });
-      console.log('✅ Step 1 complete');
+      // ✅ Step 1: Update User.role only (if needed)
+      if (editForm.role !== selectedUser.role) {
+        console.log('📝 Step 1: Updating User.role...');
+        await updateUserMutation.mutateAsync({
+          userId: selectedUser.id,
+          data: { role: editForm.role }
+        });
+        console.log('✅ Step 1 complete');
+      } else {
+        console.log('⏭️ Step 1 skipped (role unchanged)');
+      }
 
       let currentProfileId = selectedUser.profile?.id;
 
-      // ✅ Step 2: Update or create Profile
-      console.log('📝 Step 2: Updating/Creating UserProfile...');
+      // ✅ Step 2: Update or create Profile (WITH full_name)
+      console.log('📝 Step 2: Updating/Creating UserProfile (with full_name)...');
       if (selectedUser.profile) {
         await updateProfileMutation.mutateAsync({
           profileId: selectedUser.profile.id,
           data: {
+            full_name: editForm.full_name, // ✅ Save to UserProfile
             role: editForm.profile_role,
             status: editForm.profile_status,
             school_name: editForm.school_name,
@@ -285,11 +285,12 @@ function AdminUsersContent() {
             grade_level: editForm.grade_level
           }
         });
-        console.log('✅ Step 2 complete (updated)');
+        console.log('✅ Step 2 complete (updated with full_name)');
       } else {
-        console.log('Creating new UserProfile...');
+        console.log('Creating new UserProfile with full_name...');
         const newProfile = await base44.entities.UserProfile.create({
           user_id: selectedUser.id,
+          full_name: editForm.full_name, // ✅ Save to UserProfile
           role: editForm.profile_role,
           status: editForm.profile_status,
           school_name: editForm.school_name,
@@ -298,7 +299,7 @@ function AdminUsersContent() {
         });
         currentProfileId = newProfile.id;
         await queryClient.invalidateQueries({ queryKey: ['profiles'] });
-        console.log('✅ Step 2 complete (created)');
+        console.log('✅ Step 2 complete (created with full_name)');
       }
 
       // ✅ Step 3: Assign code if selected
@@ -328,10 +329,11 @@ function AdminUsersContent() {
       await queryClient.invalidateQueries({ queryKey: ['users'] });
       await queryClient.invalidateQueries({ queryKey: ['profiles'] });
       await queryClient.invalidateQueries({ queryKey: ['students-info'] });
+      await queryClient.invalidateQueries({ queryKey: ['studentProfiles'] }); // NEW: Invalidate studentProfiles
       
       console.log('✅ [AdminUsers] All updates completed successfully');
       toast.success('✅ Cập nhật người dùng thành công!');
-      setIsEditModalOpen(false);
+      setIsEditModal(false);
     } catch (error) {
       console.error('❌ [AdminUsers] Error saving:', error);
       toast.error(`❌ Lỗi: ${error.message || 'Có lỗi xảy ra khi lưu.'}`);
@@ -342,7 +344,7 @@ function AdminUsersContent() {
     setConfirmDialog({
       isOpen: true,
       title: 'Xóa người dùng',
-      message: `Xóa ${user.full_name || user.email}? Hành động này không thể hoàn tác.`,
+      message: `Xóa ${user.profile?.full_name || user.full_name || user.email}? Hành động này không thể hoàn tác.`, // NEW: Reflect full_name priority
       type: 'danger',
       onConfirm: () => {
         deleteUserMutation.mutate(user.id);
@@ -464,7 +466,10 @@ function AdminUsersContent() {
                   <tr key={user.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4">
                       <div>
-                        <p className="font-bold text-gray-900">{user.full_name || 'Chưa đặt tên'}</p>
+                        {/* ✅ Priority: UserProfile.full_name > User.full_name */}
+                        <p className="font-bold text-gray-900">
+                          {user.profile?.full_name || user.full_name || 'Chưa đặt tên'}
+                        </p>
                         <p className="text-sm text-gray-500">{user.email}</p>
                       </div>
                     </td>
@@ -520,7 +525,7 @@ function AdminUsersContent() {
         {isEditModalOpen && selectedUser && (
           <div 
             className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-            onClick={() => setIsEditModalOpen(false)}
+            onClick={() => setIsEditModal(false)}
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
@@ -809,7 +814,7 @@ function AdminUsersContent() {
               {/* Footer */}
               <div className="flex gap-3 p-6 border-t bg-gray-50">
                 <button
-                  onClick={() => setIsEditModalOpen(false)}
+                  onClick={() => setIsEditModal(false)}
                   className="flex-1 border border-gray-300 py-2 rounded-lg hover:bg-white"
                 >
                   Hủy

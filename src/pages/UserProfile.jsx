@@ -204,7 +204,7 @@ function UserProfileContent() {
 
       // Populate FULL edit form with ALL fields from AdminStudentInfo
       setEditForm({
-        full_name: currentUser?.full_name || profile.full_name || '', // Use profile's full_name if currentUser doesn't have it.
+        full_name: profile.full_name || currentUser?.full_name || '', // Use profile's full_name first, then currentUser's
         phone: profile.phone || '',
         date_of_birth: profile.date_of_birth || '',
         gender: profile.gender || '',
@@ -303,16 +303,18 @@ function UserProfileContent() {
     initialData: [],
   });
 
-  // ✅ CRITICAL FIX: Update Profile Mutation with detailed logging
+  // ✅ NEW STRATEGY: Lưu full_name VÀO UserProfile, KHÔNG sync với User
   const updateProfileMutation = useMutation({
     mutationFn: async (formData) => {
-      console.log('🔄 [UserProfile] Mutation START');
+      console.log('🔄 [UserProfile] Mutation START (NEW STRATEGY)');
       console.log('📦 Form data:', formData);
-      console.log('👤 Current profileData.id:', profileData?.id);
-      console.log('👤 Current user.id:', currentUser?.id);
       
       if (!formData.full_name || formData.full_name.trim() === '') {
         throw new Error('Họ và tên không được để trống');
+      }
+      
+      if (!profileData?.id) {
+        throw new Error('Không tìm thấy profile ID');
       }
       
       let avatarUrl = profileData?.avatar_url;
@@ -327,35 +329,18 @@ function UserProfileContent() {
         toast.dismiss('avatar');
       }
 
-      // ✅ CRITICAL: Update User.full_name FIRST
-      console.log('📝 Updating User.full_name to:', formData.full_name);
-      try {
-        await base44.auth.updateMe({ full_name: formData.full_name });
-        console.log('✅ User.full_name updated successfully');
-      } catch (error) {
-        console.error('❌ Failed to update User.full_name:', error);
-        throw new Error('Không thể cập nhật tên: ' + error.message);
-      }
-
-      // ✅ CRITICAL: Remove built-in fields + full_name from UserProfile
-      const { 
-        full_name, user_id, id, created_date, updated_date, created_by, 
-        ...cleanProfileData 
-      } = formData;
+      // ✅ NEW: Include full_name in UserProfile (Source of Truth)
+      const { user_id, id, created_date, updated_date, created_by, ...profileUpdateData } = formData;
       
-      console.log('📝 Cleaned profile data (without full_name):', cleanProfileData);
-      
-      // ✅ Update UserProfile with cleaned data
-      if (!profileData?.id) {
-        throw new Error('Không tìm thấy profile ID');
-      }
+      console.log('📝 Updating UserProfile (WITH full_name):', profileUpdateData);
       
       try {
         const updatedProfile = await base44.entities.UserProfile.update(profileData.id, {
-          ...cleanProfileData,
+          ...profileUpdateData,
+          full_name: formData.full_name, // ✅ NOW stored in UserProfile
           avatar_url: avatarUrl
         });
-        console.log('✅ UserProfile updated:', updatedProfile);
+        console.log('✅ UserProfile updated (with full_name):', updatedProfile);
         return updatedProfile;
       } catch (error) {
         console.error('❌ Failed to update UserProfile:', error);
@@ -366,25 +351,17 @@ function UserProfileContent() {
       console.log('✅ [UserProfile] Mutation SUCCESS');
       
       try {
-        // ✅ CRITICAL: Invalidate and wait
-        console.log('🔄 Invalidating userProfile query...');
         await queryClient.invalidateQueries({ queryKey: ['userProfile'] });
         
-        // ✅ CRITICAL: Refresh currentUser from server
-        console.log('🔄 Refreshing currentUser from server...');
-        const refreshedUser = await base44.auth.me();
-        console.log('✅ Refreshed user:', refreshedUser);
-        setCurrentUser(refreshedUser);
-        
-        // ✅ CRITICAL: Update profileData state immediately
+        // ✅ Update profileData state immediately
         if (updatedProfile) {
-          console.log('✅ Updating profileData state');
+          console.log('✅ Updating profileData state with new full_name:', updatedProfile.full_name);
           setProfileData(updatedProfile);
         }
         
-        // ✅ Re-populate editForm with new data
+        // ✅ Re-populate editForm with fresh data
         setEditForm({
-          full_name: refreshedUser.full_name || '',
+          full_name: updatedProfile.full_name || '',
           phone: updatedProfile.phone || '',
           date_of_birth: updatedProfile.date_of_birth || '',
           gender: updatedProfile.gender || '',
@@ -689,7 +666,8 @@ function UserProfileContent() {
     }
   });
 
-  const displayFullName = currentUser?.full_name || 'Chưa cập nhật';
+  // ✅ UPDATED: Display full_name from profileData (UserProfile.full_name)
+  const displayFullName = profileData?.full_name || currentUser?.full_name || 'Chưa cập nhật';
   const displayEmail = currentUser?.email || '';
 
   const displayRole = useMemo(() => {
