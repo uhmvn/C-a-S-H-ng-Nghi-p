@@ -1,32 +1,10 @@
+
 import React from "react";
 import { motion } from "framer-motion";
 import { MapPin, Phone, Mail, Clock, Facebook, Sparkles, Send } from "lucide-react";
 import Breadcrumb from "@/components/Breadcrumb";
-import { base44 } from "@/api/base44Client";
-import { useQuery } from "@tanstack/react-query";
 
 export default function Contact() {
-  // ✅ Fetch CMS content for Contact page
-  const { data: cmsContent = [] } = useQuery({
-    queryKey: ['cmsContent', 'contact'],
-    queryFn: async () => {
-      const content = await base44.entities.CMSContent.filter({ 
-        page_key: 'contact',
-        is_active: true 
-      }, 'order');
-      return content || [];
-    },
-    initialData: []
-  });
-
-  const introContent = cmsContent.find(c => c.section_key === 'contact_intro');
-  const addressContent = cmsContent.find(c => c.section_key === 'address');
-  const phoneContent = cmsContent.find(c => c.section_key === 'phone');
-  const emailContent = cmsContent.find(c => c.section_key === 'email');
-  const hoursContent = cmsContent.find(c => c.section_key === 'hours');
-  const socialContent = cmsContent.find(c => c.section_key === 'social');
-  const mapContent = cmsContent.find(c => c.section_key === 'map');
-
   const breadcrumbItems = [
     { label: "Liên hệ" }
   ];
@@ -50,11 +28,12 @@ export default function Contact() {
           </div>
           
           <h1 className="font-display font-medium text-[length:var(--font-h1)] text-gray-900 mb-6 leading-tight">
-            {introContent?.title || 'Liên Hệ Với Chúng Tôi'}
+            Liên Hệ Với Chúng Tôi
           </h1>
           
           <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-[1.618]">
-            {introContent?.content || 'Trường THCS Nguyễn Du - Nơi nuôi dưỡng ước mơ và định hướng tương lai cho học sinh. Hãy liên hệ với chúng tôi để được tư vấn về hướng nghiệp và giáo dục.'}
+            Trường THCS Nguyễn Du - Nơi nuôi dưỡng ước mơ và định hướng tương lai cho học sinh. 
+            Hãy liên hệ với chúng tôi để được tư vấn về hướng nghiệp và giáo dục.
           </p>
         </motion.div>
 
@@ -73,24 +52,11 @@ export default function Contact() {
                   <MapPin className="w-6 h-6 text-indigo-600" />
                 </div>
                 <div>
-                  <h3 className="font-display text-xl font-bold text-gray-900 mb-2">
-                    {addressContent?.title || 'Địa chỉ trường'}
-                  </h3>
+                  <h3 className="font-display text-xl font-bold text-gray-900 mb-2">Địa chỉ trường</h3>
                   <p className="leading-[1.618] text-gray-600">
-                    {addressContent?.data_json ? (
-                      <>
-                        {addressContent.data_json.street}<br />
-                        {addressContent.data_json.ward}<br />
-                        {addressContent.data_json.city}<br />
-                        {addressContent.data_json.province}
-                      </>
-                    ) : (
-                      <>
-                        523, Phạm Hùng, Phường Bà Rịa<br />
-                        Thành phố Bà Rịa<br />
-                        Tỉnh Bà Rịa - Vũng Tàu
-                      </>
-                    )}
+                    523, Phạm Hùng, Phường Bà Rịa<br />
+                    Thành phố Bà Rịa<br />
+                    Tỉnh Bà Rịa - Vũng Tàu
                   </p>
                 </div>
               </div>
@@ -103,20 +69,13 @@ export default function Contact() {
                   <Phone className="w-6 h-6 text-indigo-600" />
                 </div>
                 <div>
-                  <h3 className="font-display text-xl font-bold text-gray-900 mb-2">
-                    {phoneContent?.title || 'Điện thoại'}
-                  </h3>
+                  <h3 className="font-display text-xl font-bold text-gray-900 mb-2">Điện thoại</h3>
                   <p className="leading-[1.618] text-gray-600">
-                    <a 
-                      href={`tel:${phoneContent?.data_json?.number?.replace(/[^0-9]/g, '') || '02543826178'}`}
-                      className="hover:text-indigo-600 transition-colors duration-300"
-                    >
-                      {phoneContent?.data_json?.display || '(0254) 3.826.178'}
+                    <a href="tel:02543826178" className="hover:text-indigo-600 transition-colors duration-300">
+                      (0254) 3.826.178
                     </a>
                     <br />
-                    <span className="text-sm">
-                      {phoneContent?.data_json?.note || 'Liên hệ trong giờ hành chính'}
-                    </span>
+                    <span className="text-sm">Liên hệ trong giờ hành chính</span>
                   </p>
                 </div>
               </div>
@@ -129,20 +88,16 @@ export default function Contact() {
                   <Mail className="w-6 h-6 text-indigo-600" />
                 </div>
                 <div>
-                  <h3 className="font-display text-xl font-bold text-gray-900 mb-2">
-                    {emailContent?.title || 'Email'}
-                  </h3>
+                  <h3 className="font-display text-xl font-bold text-gray-900 mb-2">Email</h3>
                   <p className="leading-[1.618] text-gray-600">
                     <a 
-                      href={`mailto:${emailContent?.data_json?.address || 'c2nguyendu.baria.bariavungtau@moet.edu.vn'}`}
+                      href="mailto:c2nguyendu.baria.bariavungtau@moet.edu.vn" 
                       className="hover:text-indigo-600 transition-colors duration-300 break-all"
                     >
-                      {emailContent?.data_json?.address || 'c2nguyendu.baria.bariavungtau@moet.edu.vn'}
+                      c2nguyendu.baria.bariavungtau@moet.edu.vn
                     </a>
                     <br />
-                    <span className="text-sm">
-                      {emailContent?.data_json?.note || 'Phản hồi trong vòng 24 giờ'}
-                    </span>
+                    <span className="text-sm">Phản hồi trong vòng 24 giờ</span>
                   </p>
                 </div>
               </div>
@@ -155,23 +110,11 @@ export default function Contact() {
                   <Clock className="w-5 h-5 text-indigo-600" />
                 </div>
                 <div>
-                  <h3 className="font-display text-xl font-bold text-gray-900 mb-2">
-                    {hoursContent?.title || 'Giờ làm việc'}
-                  </h3>
+                  <h3 className="font-display text-xl font-bold text-gray-900 mb-2">Giờ làm việc</h3>
                   <div className="text-gray-600 space-y-1 leading-[1.618]">
-                    {hoursContent?.data_json ? (
-                      <>
-                        <p>{hoursContent.data_json.weekdays}</p>
-                        <p>{hoursContent.data_json.saturday}</p>
-                        <p>{hoursContent.data_json.sunday}</p>
-                      </>
-                    ) : (
-                      <>
-                        <p>Thứ 2 - Thứ 6: 7:00 AM - 5:00 PM</p>
-                        <p>Thứ 7: 7:00 AM - 12:00 PM</p>
-                        <p>Chủ nhật: Nghỉ</p>
-                      </>
-                    )}
+                    <p>Thứ 2 - Thứ 6: 7:00 AM - 5:00 PM</p>
+                    <p>Thứ 7: 7:00 AM - 12:00 PM</p>
+                    <p>Chủ nhật: Nghỉ</p>
                   </div>
                 </div>
               </div>
@@ -179,14 +122,10 @@ export default function Contact() {
 
             {/* Social Media */}
             <div className="bg-white rounded-3xl p-8 shadow-lg border border-indigo-600/20">
-              <h3 className="font-display text-xl font-bold text-gray-900 mb-4">
-                {socialContent?.title || 'Theo dõi chúng tôi'}
-              </h3>
+              <h3 className="font-display text-xl font-bold text-gray-900 mb-4">Theo dõi chúng tôi</h3>
               <div className="flex gap-4">
                 <a 
-                  href={socialContent?.data_json?.facebook || '#'}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  href="#" 
                   className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center hover:bg-purple-600 transition-colors duration-300 text-white"
                   aria-label="Facebook"
                 >
@@ -302,12 +241,10 @@ export default function Contact() {
           className="mt-16"
         >
           <div className="bg-white rounded-3xl p-8 shadow-lg border border-indigo-600/20">
-            <h2 className="font-display text-2xl font-bold text-gray-900 mb-6 text-center">
-              {mapContent?.title || 'Bản đồ đến trường'}
-            </h2>
+            <h2 className="font-display text-2xl font-bold text-gray-900 mb-6 text-center">Bản đồ đến trường</h2>
             <div className="aspect-video rounded-2xl overflow-hidden">
               <iframe 
-                src={mapContent?.content || 'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3926.8155076862684!2d107.16877631533658!3d10.507668992580858!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3175772c1e6e1e0d%3A0x7c9c4e3e4e3e4e3e!2zNTIzIMSQLiBQaOG6oW0gSMO5bmcsIFBoxrDhu51uZyBCw6AgUuG7i2EsIFRow6BuaCBwaOG7kSBC4buRIFLhu4thLCBC4bq5IFLhu4thIC0gVsWpbmcgVMOgdSwgVmnhu4d0IE5hbQ!5e0!3m2!1svi!2s!4v1629788888888!5m2!1svi!2s'}
+                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3926.8155076862684!2d107.16877631533658!3d10.507668992580858!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3175772c1e6e1e0d%3A0x7c9c4e3e4e3e4e3e!2zNTIzIMSQLiBQaOG6oW0gSMO5bmcsIFBoxrDhu51uZyBCw6AgUuG7i2EsIFRow6BuaCBwaOG7kSBC4buRIFLhu4thLCBC4bq5IFLhu4thIC0gVsWpbmcgVMOgdSwgVmihu4d0IE5hbQ!5e0!3m2!1svi!2s!4v1629788888888!5m2!1svi!2s"
                 width="100%" 
                 height="100%" 
                 style={{ border: 0 }} 
