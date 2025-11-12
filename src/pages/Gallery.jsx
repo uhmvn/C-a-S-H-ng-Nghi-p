@@ -1,7 +1,7 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { 
-  Sparkles, ArrowRight, Target, Users, BookOpen, TrendingUp 
+  Sparkles, ArrowRight, Target, Users, BookOpen, TrendingUp, ExternalLink
 } from "lucide-react";
 import Breadcrumb from "@/components/Breadcrumb";
 import { base44 } from "@/api/base44Client";
@@ -33,7 +33,7 @@ export default function Gallery() {
     initialData: []
   });
 
-  // ✅ FIX: Icon mapping object (no require())
+  // ✅ Icon mapping - Fixed for React
   const iconMap = {
     Target,
     Users,
@@ -41,35 +41,12 @@ export default function Gallery() {
     TrendingUp
   };
 
-  // Fallback static data if CMS not configured
-  const defaultHighlights = [
-    {
-      icon: 'Target',
-      title: "Mục tiêu của dự án",
-      description: "Giúp học sinh THCS & THPT xác định nghề nghiệp, hiểu rõ sở thích và năng lực, cũng như nắm bắt nhu cầu nghề nghiệp của xã hội theo Quyết định 522/QĐ-TTg."
-    },
-    {
-      icon: 'Users',
-      title: "Đối tượng hướng đến",
-      description: "Học sinh THCS & THPT đang đứng trước ngưỡng cửa tương lai, cần định hướng nghề nghiệp và lựa chọn trường học phù hợp."
-    },
-    {
-      icon: 'BookOpen',
-      title: "Công cụ hỗ trợ",
-      description: "Trắc nghiệm khoa học, phân tích AI, gợi ý nghề nghiệp, tư vấn chọn trường và tổ hợp môn thi phù hợp với năng lực cá nhân."
-    },
-    {
-      icon: 'TrendingUp',
-      title: "Kết nối với thực tế",
-      description: "Cung cấp thông tin ngành nghề cập nhật, xu hướng thị trường lao động để học sinh có cái nhìn thực tế về tương lai nghề nghiệp."
-    }
-  ];
-
-  const projectHighlights = cmsContent.filter(c => c.section_key === 'highlights');
-  const highlightsToShow = projectHighlights.length > 0 ? projectHighlights : defaultHighlights;
-
-  const headerContent = cmsContent.find(c => c.section_key === 'header');
-  const missionContent = cmsContent.find(c => c.section_key === 'mission');
+  // Get specific sections
+  const headerSection = cmsContent.find(c => c.section_key === 'header');
+  const introSection = cmsContent.find(c => c.section_key === 'intro');
+  const governmentSection = cmsContent.find(c => c.section_key === 'government_banner');
+  const missionSection = cmsContent.find(c => c.section_key === 'mission');
+  const highlightSections = cmsContent.filter(c => c.section_key === 'highlights');
 
   const breadcrumbItems = [
     { label: "Về chúng tôi" }
@@ -90,16 +67,18 @@ export default function Gallery() {
         >
           <div className="inline-flex items-center gap-2 bg-indigo-600/10 rounded-full px-4 py-2 mb-6">
             <Sparkles className="w-4 h-4 text-indigo-600" />
-            <span className="text-sm font-medium">Về Dự Án</span>
+            <span className="text-sm font-medium">
+              {headerSection?.subtitle || 'Về Dự Án'}
+            </span>
           </div>
           
           <h1 className="font-display font-medium text-[length:var(--font-h1)] text-gray-900 mb-6 leading-tight">
-            {headerContent?.title || 'Về Dự Án "Cửa Sổ Nghề Nghiệp"'}
+            {headerSection?.title || 'Về Dự Án "Cửa Sổ Nghề Nghiệp"'}
           </h1>
           
           <div className="text-xl text-gray-600 max-w-4xl mx-auto leading-[1.618] space-y-4">
-            {headerContent?.content ? (
-              <div dangerouslySetInnerHTML={{ __html: headerContent.content }} />
+            {introSection?.content ? (
+              <div dangerouslySetInnerHTML={{ __html: introSection.content }} />
             ) : (
               <>
                 <p>
@@ -113,60 +92,97 @@ export default function Gallery() {
           </div>
         </motion.div>
 
-        {/* Project Highlights */}
+        {/* Project Highlights - Dynamic */}
         <section className="mb-16">
           <div className="grid md:grid-cols-2 gap-8">
-            {highlightsToShow.map((item, index) => {
-              const IconComponent = iconMap[item.icon] || Target;
-              
-              return (
-                <motion.div
-                  key={item.id || index}
-                  initial={{ opacity: 0, y: 60 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ 
-                    duration: 0.8, 
-                    delay: index * 0.1,
-                    ease: "easeOut"
-                  }}
-                  className="bg-white rounded-3xl p-8 shadow-lg border border-indigo-600/20 hover:shadow-xl transition-all duration-300"
-                >
-                  <div className="w-14 h-14 bg-indigo-600/10 rounded-2xl flex items-center justify-center mb-6">
-                    <IconComponent className="w-7 h-7 text-indigo-600" />
-                  </div>
-                  <h3 className="font-display text-xl font-bold text-gray-900 mb-3">
-                    {item.title}
-                  </h3>
-                  <p className="text-gray-600 leading-relaxed">
-                    {item.description || item.content}
-                  </p>
-                </motion.div>
-              );
-            })}
+            {highlightSections.length > 0 ? (
+              highlightSections.map((item, index) => {
+                const IconComponent = iconMap[item.icon] || Target;
+                
+                return (
+                  <motion.div
+                    key={item.id}
+                    initial={{ opacity: 0, y: 60 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ 
+                      duration: 0.8, 
+                      delay: index * 0.1,
+                      ease: "easeOut"
+                    }}
+                    className="bg-white rounded-3xl p-8 shadow-lg border border-indigo-600/20 hover:shadow-xl transition-all duration-300"
+                  >
+                    <div className="w-14 h-14 bg-indigo-600/10 rounded-2xl flex items-center justify-center mb-6">
+                      <IconComponent className="w-7 h-7 text-indigo-600" />
+                    </div>
+                    <h3 className="font-display text-xl font-bold text-gray-900 mb-3">
+                      {item.title}
+                    </h3>
+                    <p className="text-gray-600 leading-relaxed">
+                      {item.content}
+                    </p>
+                  </motion.div>
+                );
+              })
+            ) : (
+              // Fallback
+              <>
+                {[
+                  { icon: Target, title: "Mục tiêu của dự án", content: "Giúp học sinh THCS & THPT xác định nghề nghiệp, hiểu rõ sở thích và năng lực." },
+                  { icon: Users, title: "Đối tượng hướng đến", content: "Học sinh THCS & THPT đang đứng trước ngưỡng cửa tương lai." },
+                  { icon: BookOpen, title: "Công cụ hỗ trợ", content: "Trắc nghiệm khoa học, phân tích AI, gợi ý nghề nghiệp." },
+                  { icon: TrendingUp, title: "Kết nối với thực tế", content: "Cung cấp thông tin ngành nghề cập nhật, xu hướng thị trường lao động." }
+                ].map((item, index) => {
+                  const IconComponent = item.icon;
+                  return (
+                    <motion.div
+                      key={index}
+                      initial={{ opacity: 0, y: 60 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.8, delay: index * 0.1 }}
+                      className="bg-white rounded-3xl p-8 shadow-lg border border-indigo-600/20 hover:shadow-xl transition-all duration-300"
+                    >
+                      <div className="w-14 h-14 bg-indigo-600/10 rounded-2xl flex items-center justify-center mb-6">
+                        <IconComponent className="w-7 h-7 text-indigo-600" />
+                      </div>
+                      <h3 className="font-display text-xl font-bold text-gray-900 mb-3">{item.title}</h3>
+                      <p className="text-gray-600 leading-relaxed">{item.content}</p>
+                    </motion.div>
+                  );
+                })}
+              </>
+            )}
           </div>
         </section>
 
-        {/* Government Decision Banner */}
+        {/* Government Decision Banner - Dynamic */}
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.4 }}
-          className="mb-16 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-3xl p-8 md:p-12 text-white shadow-2xl"
+          className={`mb-16 rounded-3xl p-8 md:p-12 text-white shadow-2xl ${
+            governmentSection?.background_style 
+              ? `bg-gradient-to-r ${governmentSection.background_style}`
+              : 'bg-gradient-to-r from-indigo-600 to-purple-600'
+          }`}
         >
           <div className="text-center mb-6">
             <h2 className="font-display text-2xl md:text-3xl font-bold mb-4">
-              Căn Cứ Pháp Lý
+              {governmentSection?.title || 'Căn Cứ Pháp Lý'}
             </h2>
             <div className="w-24 h-1 bg-white/30 mx-auto"></div>
           </div>
           
           <p className="text-lg leading-relaxed mb-6 text-center max-w-4xl mx-auto">
-            Website này được xây dựng nhằm mục tiêu giúp các em học sinh xác định nghề nghiệp, hiểu rõ sở thích và năng lực của mình, cũng như hiểu được bối cảnh nhu cầu nghề nghiệp của xã hội — theo đúng định hướng của:
+            {governmentSection?.content || 
+              'Website này được xây dựng nhằm mục tiêu giúp các em học sinh xác định nghề nghiệp, hiểu rõ sở thích và năng lực của mình, cũng như hiểu được bối cảnh nhu cầu nghề nghiệp của xã hội — theo đúng định hướng của:'
+            }
           </p>
           
           <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 mb-6">
             <h3 className="font-display text-xl font-bold mb-3 text-center">
-              Đề án "Giáo dục hướng nghiệp và định hướng phân luồng học sinh trong giáo dục phổ thông giai đoạn 2018‑2025"
+              {governmentSection?.subtitle || 
+                'Đề án "Giáo dục hướng nghiệp và định hướng phân luồng học sinh trong giáo dục phổ thông giai đoạn 2018‑2025"'
+              }
             </h3>
             <p className="text-center text-white/90 mb-4">
               Được phê duyệt tại <strong>Quyết định 522/QĐ-TTg</strong>
@@ -175,18 +191,19 @@ export default function Gallery() {
 
           <div className="text-center">
             <a 
-              href="https://vanban.chinhphu.vn/default.aspx?pageid=27160&docid=193710"
+              href={governmentSection?.link_url || "https://vanban.chinhphu.vn/default.aspx?pageid=27160&docid=193710"}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-3 bg-white text-indigo-600 px-8 py-4 rounded-full font-medium hover:bg-gray-50 transition-all duration-300 hover:scale-105 shadow-lg"
             >
-              Xem Văn Bản Chính Thức
+              <ExternalLink className="w-5 h-5" />
+              {governmentSection?.link_text || 'Xem Văn Bản Chính Thức'}
               <ArrowRight className="w-5 h-5" />
             </a>
           </div>
         </motion.div>
 
-        {/* Mission Statement */}
+        {/* Mission Statement - Dynamic */}
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
@@ -194,12 +211,12 @@ export default function Gallery() {
           className="bg-white rounded-3xl p-8 md:p-12 shadow-lg border border-indigo-600/20 mb-16"
         >
           <h2 className="font-display text-2xl md:text-3xl font-bold text-gray-900 mb-6 text-center">
-            {missionContent?.title || 'Sứ Mệnh Của Chúng Tôi'}
+            {missionSection?.title || 'Sứ Mệnh Của Chúng Tôi'}
           </h2>
           
           <div className="prose prose-lg max-w-4xl mx-auto text-gray-600">
-            {missionContent?.content ? (
-              <div dangerouslySetInnerHTML={{ __html: missionContent.content }} />
+            {missionSection?.content ? (
+              <div dangerouslySetInnerHTML={{ __html: missionSection.content }} />
             ) : (
               <>
                 <p className="leading-relaxed mb-4">
@@ -213,7 +230,7 @@ export default function Gallery() {
           </div>
         </motion.div>
 
-        {/* Gallery Grid - Dynamic from Database */}
+        {/* Gallery Grid - 100% Dynamic */}
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
@@ -225,8 +242,12 @@ export default function Gallery() {
           </h2>
           
           {galleryImages.length === 0 ? (
-            <div className="text-center py-12 bg-white rounded-2xl">
-              <p className="text-gray-600">Chưa có hình ảnh. Admin có thể thêm trong CMS.</p>
+            <div className="text-center py-16 bg-white rounded-3xl shadow-lg border-2 border-dashed border-gray-300">
+              <Sparkles className="w-20 h-20 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Gallery trống</h3>
+              <p className="text-gray-600 mb-4">
+                Admin có thể thêm hình ảnh trong trang CMS
+              </p>
             </div>
           ) : (
             <div className="grid lg:grid-cols-3 md:grid-cols-2 gap-[clamp(1rem,2vw,2.5rem)]">
@@ -249,6 +270,11 @@ export default function Gallery() {
                         alt={image.alt_text || image.title}
                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                       />
+                      {image.featured && (
+                        <div className="absolute top-4 left-4 bg-yellow-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg">
+                          ⭐ NỔI BẬT
+                        </div>
+                      )}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                       
                       <div className="absolute inset-0 flex items-end justify-start p-6 opacity-0 group-hover:opacity-100 transition-all duration-500">
@@ -260,7 +286,7 @@ export default function Gallery() {
                             {image.title}
                           </h3>
                           {image.description && (
-                            <p className="text-sm opacity-90 mt-1">{image.description}</p>
+                            <p className="text-sm opacity-90 mt-1 line-clamp-2">{image.description}</p>
                           )}
                         </div>
                       </div>
