@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -58,6 +59,8 @@ export default function AdminStudentInfo() {
   useEffect(() => {
     if (selectedStudent && !isEditing) {
       const user = (users || []).find(u => u && u.id === selectedStudent.user_id);
+      console.log('🔄 [AdminStudentInfo] Setting formData for student:', selectedStudent.id);
+      console.log('👤 User data:', user);
       setFormData({
         ...selectedStudent,
         full_name: user?.full_name || ''
@@ -65,41 +68,94 @@ export default function AdminStudentInfo() {
     }
   }, [selectedStudent, users, isEditing]);
 
-  // ✅ Update mutation with proper data structure
+  // ✅ CRITICAL FIX: Update mutation with proper validation
   const updateMutation = useMutation({
     mutationFn: async ({ profileData, fullName, avatarUrl }) => {
-      console.log('💾 Saving data:', { profileData, fullName, avatarUrl });
+      console.log('🔄 [AdminStudentInfo] Mutation START');
+      console.log('📦 Profile data:', profileData);
+      console.log('📝 Full name:', fullName);
+      console.log('🖼️ Avatar URL:', avatarUrl);
+      console.log('👤 Student user_id:', selectedStudent.user_id);
       
-      // Update User.full_name if changed
-      if (fullName && selectedStudent.user_id) {
-        console.log('Updating User.full_name:', fullName);
+      if (!fullName || fullName.trim() === '') {
+        throw new Error('Họ và tên không được để trống');
+      }
+      
+      if (!selectedStudent.user_id) {
+        throw new Error('Không tìm thấy user_id của học sinh');
+      }
+      
+      // ✅ Step 1: Update User.full_name
+      console.log('📝 Updating User.full_name...');
+      try {
         await base44.entities.User.update(selectedStudent.user_id, {
           full_name: fullName
         });
+        console.log('✅ User.full_name updated successfully');
+      } catch (error) {
+        console.error('❌ Failed to update User.full_name:', error);
+        throw new Error('Không thể cập nhật tên: ' + error.message);
       }
       
-      // Update UserProfile with avatar
+      // ✅ Step 2: Update UserProfile (without full_name)
       const updateData = { ...profileData };
       if (avatarUrl) {
         updateData.avatar_url = avatarUrl;
       }
       
-      console.log('Updating UserProfile:', updateData);
-      return await base44.entities.UserProfile.update(selectedStudent.id, updateData);
+      console.log('📝 Updating UserProfile with:', updateData);
+      try {
+        const result = await base44.entities.UserProfile.update(selectedStudent.id, updateData);
+        console.log('✅ UserProfile updated:', result);
+        return result;
+      } catch (error) {
+        console.error('❌ Failed to update UserProfile:', error);
+        throw new Error('Không thể cập nhật profile: ' + error.message);
+      }
     },
-    onSuccess: (updatedProfile) => {
-      console.log('✅ Update successful:', updatedProfile);
-      queryClient.invalidateQueries({ queryKey: ['students-info'] });
-      queryClient.invalidateQueries({ queryKey: ['users'] });
-      toast.success('✅ Đã cập nhật thông tin!');
-      setIsEditing(false);
-      setAvatarFile(null);
-      // ✅ CRITICAL: Update selectedStudent immediately with new data
-      setSelectedStudent(updatedProfile);
+    onSuccess: async (updatedProfile) => {
+      console.log('✅ [AdminStudentInfo] Mutation SUCCESS');
+      console.log('📦 Updated profile:', updatedProfile);
+      
+      try {
+        // ✅ Invalidate queries
+        await queryClient.invalidateQueries({ queryKey: ['students-info'] });
+        await queryClient.invalidateQueries({ queryKey: ['users'] });
+        
+        // ✅ CRITICAL: Update selectedStudent with fresh data
+        console.log('🔄 Fetching fresh student data...');
+        const freshProfiles = await base44.entities.UserProfile.filter({ id: selectedStudent.id });
+        const freshUsers = await base44.entities.User.filter({ id: selectedStudent.user_id });
+        
+        if (freshProfiles && freshProfiles.length > 0) {
+          const freshStudent = freshProfiles[0];
+          console.log('✅ Fresh student data:', freshStudent);
+          setSelectedStudent(freshStudent);
+          
+          // ✅ Update formData with fresh user full_name
+          const freshUser = freshUsers && freshUsers.length > 0 ? freshUsers[0] : null;
+          console.log('✅ Fresh user data:', freshUser);
+          
+          if (!isEditing) { // Only reset formData if not currently editing (user cancelled or saved)
+            setFormData({
+              ...freshStudent,
+              full_name: freshUser?.full_name || ''
+            });
+          }
+        }
+        
+        console.log('✅ All updates completed');
+        toast.success('✅ Đã cập nhật thông tin!');
+        setIsEditing(false);
+        setAvatarFile(null);
+      } catch (error) {
+        console.error('❌ Error refreshing data:', error);
+        toast.error('⚠️ Đã lưu nhưng không thể làm mới. Vui lòng reload trang.');
+      }
     },
     onError: (error) => {
-      console.error('❌ Update error:', error);
-      toast.error(`Lỗi: ${error.message}`);
+      console.error('❌ [AdminStudentInfo] Mutation ERROR:', error);
+      toast.error(`❌ Lỗi: ${error.message}`);
     }
   });
 
@@ -127,8 +183,13 @@ export default function AdminStudentInfo() {
 
   const handleSave = async () => {
     try {
-      console.log('🔄 Starting save process...');
-      console.log('Form data:', formData);
+      console.log('🔄 [AdminStudentInfo] Starting save process...');
+      console.log('📦 Form data:', formData);
+      
+      if (!formData.full_name || formData.full_name.trim() === '') {
+        toast.error('❌ Họ và tên không được để trống');
+        return;
+      }
       
       let avatarUrl = selectedStudent.avatar_url;
       
@@ -137,14 +198,18 @@ export default function AdminStudentInfo() {
         toast.loading('Đang tải ảnh...', { id: 'avatar' });
         const { file_url } = await base44.integrations.Core.UploadFile({ file: avatarFile });
         avatarUrl = file_url;
+        console.log('✅ Avatar uploaded:', file_url);
         toast.success('Tải ảnh thành công!', { id: 'avatar' });
       }
       
-      // ✅ CRITICAL FIX: Separate full_name from profile data
-      const { full_name, user_id, id, created_date, updated_date, created_by, ...profileData } = formData;
+      // ✅ CRITICAL: Separate full_name and clean built-in fields
+      const { 
+        full_name, user_id, id, created_date, updated_date, created_by, 
+        ...profileData 
+      } = formData;
       
-      console.log('Profile data to save:', profileData);
-      console.log('Full name to save:', full_name);
+      console.log('📝 Full name to save:', full_name);
+      console.log('📝 Profile data to save:', profileData);
       
       updateMutation.mutate({
         profileData,
@@ -153,7 +218,7 @@ export default function AdminStudentInfo() {
       });
     } catch (error) {
       console.error('❌ Save error:', error);
-      toast.error(`Lỗi: ${error.message}`);
+      toast.error(`❌ Lỗi: ${error.message}`);
     }
   };
 

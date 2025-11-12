@@ -75,17 +75,17 @@ function AdminUsersContent() {
     queryFn: async () => {
       try {
         const allCodes = await base44.entities.CodeInventory.list('-generated_at', 500);
-        console.log('All codes from inventory:', allCodes);
-        console.log('Current profile_role:', editForm.profile_role);
+        console.log('[AdminUsers] All codes from inventory:', allCodes);
+        console.log('[AdminUsers] Current profile_role:', editForm.profile_role);
         
         const filtered = allCodes.filter(c => {
           const statusMatch = c.status === 'available';
           const roleMatch = !editForm.profile_role || c.role === editForm.profile_role;
-          console.log(`Code ${c.user_code}: status=${c.status} (${statusMatch}), role=${c.role} vs ${editForm.profile_role} (${roleMatch})`);
+          console.log(`[AdminUsers] Code ${c.user_code}: status=${c.status} (${statusMatch}), role=${c.role} vs ${editForm.profile_role} (${roleMatch})`);
           return statusMatch && roleMatch;
         });
         
-        console.log('Filtered available codes:', filtered);
+        console.log('[AdminUsers] Filtered available codes:', filtered);
         return filtered;
       } catch (error) {
         console.error('Error fetching codes:', error);
@@ -98,33 +98,45 @@ function AdminUsersContent() {
     cacheTime: 10 * 60 * 1000,
   });
 
-  // ✅ CRITICAL FIX: Update mutations
+  // ✅ CRITICAL FIX: Update User mutation with logging
   const updateUserMutation = useMutation({
     mutationFn: async ({ userId, data }) => {
-      console.log('📝 Updating User:', userId, data);
-      return await base44.entities.User.update(userId, data);
+      console.log('📝 [AdminUsers] Updating User:', userId, data);
+      
+      if (data.full_name && data.full_name.trim() === '') {
+        throw new Error('Họ và tên không được để trống');
+      }
+      
+      const result = await base44.entities.User.update(userId, data);
+      console.log('✅ [AdminUsers] User updated:', result);
+      return result;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users'] });
-      console.log('✅ User updated successfully');
+    onSuccess: async () => {
+      console.log('✅ [AdminUsers] User update success, invalidating cache...');
+      await queryClient.invalidateQueries({ queryKey: ['users'] });
+      console.log('✅ [AdminUsers] User cache invalidated');
     },
     onError: (error) => {
-      console.error('❌ User update error:', error);
+      console.error('❌ [AdminUsers] User update error:', error);
       throw error;
     }
   });
 
   const updateProfileMutation = useMutation({
     mutationFn: async ({ profileId, data }) => {
-      console.log('📝 Updating UserProfile:', profileId, data);
-      return await base44.entities.UserProfile.update(profileId, data);
+      console.log('📝 [AdminUsers] Updating UserProfile:', profileId, data);
+      const result = await base44.entities.UserProfile.update(profileId, data);
+      console.log('✅ [AdminUsers] UserProfile updated:', result);
+      return result;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['profiles'] });
-      console.log('✅ Profile updated successfully');
+    onSuccess: async () => {
+      console.log('✅ [AdminUsers] Profile update success, invalidating cache...');
+      await queryClient.invalidateQueries({ queryKey: ['profiles'] });
+      await queryClient.invalidateQueries({ queryKey: ['students-info'] });
+      console.log('✅ [AdminUsers] Profile cache invalidated');
     },
     onError: (error) => {
-      console.error('❌ Profile update error:', error);
+      console.error('❌ [AdminUsers] Profile update error:', error);
       throw error;
     }
   });
@@ -143,6 +155,7 @@ function AdminUsersContent() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
       queryClient.invalidateQueries({ queryKey: ['profiles'] });
+      queryClient.invalidateQueries({ queryKey: ['students-info'] });
       toast.success('Xóa user thành công!');
     },
     onError: (error) => {
@@ -176,6 +189,7 @@ function AdminUsersContent() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['profiles'] });
       queryClient.invalidateQueries({ queryKey: ['availableCodes'] });
+      queryClient.invalidateQueries({ queryKey: ['students-info'] });
       // toast.success('Cấp mã thành công!'); // Handled by handleSaveEdit
     },
     onError: (error) => {
@@ -237,9 +251,16 @@ function AdminUsersContent() {
     if (!selectedUser) return;
 
     try {
-      console.log('🔄 Starting save edit...', editForm);
+      console.log('🔄 [AdminUsers] Starting save edit...');
+      console.log('📦 Edit form:', editForm);
       
-      // ✅ Step 1: Update User.full_name and User.role
+      if (!editForm.full_name || editForm.full_name.trim() === '') {
+        toast.error('❌ Họ và tên không được để trống');
+        return;
+      }
+      
+      // ✅ Step 1: Update User.full_name and role
+      console.log('📝 Step 1: Updating User entity...');
       await updateUserMutation.mutateAsync({
         userId: selectedUser.id,
         data: {
@@ -247,10 +268,12 @@ function AdminUsersContent() {
           role: editForm.role
         }
       });
+      console.log('✅ Step 1 complete');
 
       let currentProfileId = selectedUser.profile?.id;
 
       // ✅ Step 2: Update or create Profile
+      console.log('📝 Step 2: Updating/Creating UserProfile...');
       if (selectedUser.profile) {
         await updateProfileMutation.mutateAsync({
           profileId: selectedUser.profile.id,
@@ -262,7 +285,9 @@ function AdminUsersContent() {
             grade_level: editForm.grade_level
           }
         });
+        console.log('✅ Step 2 complete (updated)');
       } else {
+        console.log('Creating new UserProfile...');
         const newProfile = await base44.entities.UserProfile.create({
           user_id: selectedUser.id,
           role: editForm.profile_role,
@@ -272,33 +297,43 @@ function AdminUsersContent() {
           grade_level: editForm.grade_level
         });
         currentProfileId = newProfile.id;
-        queryClient.invalidateQueries({ queryKey: ['profiles'] });
+        await queryClient.invalidateQueries({ queryKey: ['profiles'] });
+        console.log('✅ Step 2 complete (created)');
       }
 
-      // ✅ Step 3: Assign code if selected and user doesn't already have one
+      // ✅ Step 3: Assign code if selected
       if (selectedCodeId && currentProfileId) {
+        console.log('📝 Step 3: Checking code assignment...');
         // Fetch the most up-to-date profile data, especially if it was just created
         const updatedProfileList = await queryClient.fetchQuery({ queryKey: ['profiles'] });
-        const profileAfterMutation = updatedProfileList.find(p => p.id === currentProfileId);
+        const profile = updatedProfileList.find(p => p.id === currentProfileId);
         
-        if (!profileAfterMutation?.user_code) { // Only assign if no existing code
+        if (!profile?.user_code) { // Only assign if no existing code
+          console.log('Assigning code...');
           await assignCodeMutation.mutateAsync({
             codeId: selectedCodeId,
             profileId: currentProfileId,
             userId: selectedUser.id
           });
+          console.log('✅ Step 3 complete (assigned)');
+        } else {
+          console.log('⏭️ Step 3 skipped (already has code)');
         }
+      } else {
+        console.log('⏭️ Step 3 skipped (no code selected)');
       }
 
-      // ✅ CRITICAL: Wait for all invalidations to complete
+      // ✅ CRITICAL: Wait for all invalidations
+      console.log('🔄 Invalidating all caches...');
       await queryClient.invalidateQueries({ queryKey: ['users'] });
       await queryClient.invalidateQueries({ queryKey: ['profiles'] });
+      await queryClient.invalidateQueries({ queryKey: ['students-info'] });
       
-      console.log('✅ All updates completed successfully');
+      console.log('✅ [AdminUsers] All updates completed successfully');
       toast.success('✅ Cập nhật người dùng thành công!');
       setIsEditModalOpen(false);
     } catch (error) {
-      console.error('❌ Error saving:', error);
+      console.error('❌ [AdminUsers] Error saving:', error);
       toast.error(`❌ Lỗi: ${error.message || 'Có lỗi xảy ra khi lưu.'}`);
     }
   };

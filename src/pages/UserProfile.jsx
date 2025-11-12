@@ -303,65 +303,133 @@ function UserProfileContent() {
     initialData: [],
   });
 
-  // ✅ CRITICAL FIX: Update Profile Mutation
+  // ✅ CRITICAL FIX: Update Profile Mutation with detailed logging
   const updateProfileMutation = useMutation({
-    mutationFn: async (formData) => { // formData is the editForm state
-      console.log('🔄 UserProfile mutation START:', formData);
+    mutationFn: async (formData) => {
+      console.log('🔄 [UserProfile] Mutation START');
+      console.log('📦 Form data:', formData);
+      console.log('👤 Current profileData.id:', profileData?.id);
+      console.log('👤 Current user.id:', currentUser?.id);
       
-      let avatarUrl = profileData?.avatar_url; // Use existing avatar_url by default
+      if (!formData.full_name || formData.full_name.trim() === '') {
+        throw new Error('Họ và tên không được để trống');
+      }
+      
+      let avatarUrl = profileData?.avatar_url;
 
       // Upload avatar if file selected
       if (avatarFile) {
+        console.log('📤 Uploading avatar...');
         toast.loading('Đang tải ảnh lên...', { id: 'avatar' });
         const { file_url } = await base44.integrations.Core.UploadFile({ file: avatarFile });
         avatarUrl = file_url;
-        toast.dismiss('avatar'); // Dismiss loading toast
+        console.log('✅ Avatar uploaded:', file_url);
+        toast.dismiss('avatar');
       }
 
-      // ✅ CRITICAL: Update User.full_name FIRST via base44.auth.updateMe
+      // ✅ CRITICAL: Update User.full_name FIRST
       console.log('📝 Updating User.full_name to:', formData.full_name);
-      await base44.auth.updateMe({ full_name: formData.full_name });
+      try {
+        await base44.auth.updateMe({ full_name: formData.full_name });
+        console.log('✅ User.full_name updated successfully');
+      } catch (error) {
+        console.error('❌ Failed to update User.full_name:', error);
+        throw new Error('Không thể cập nhật tên: ' + error.message);
+      }
 
-      // ✅ CRITICAL: Prepare data for UserProfile update.
-      // Remove 'full_name' from the profile data, as it's handled by updateMe for the User entity.
-      // Other fields like 'user_id', 'id', 'created_date', 'updated_date', 'created_by' are typically
-      // system-managed or not present in the editForm and thus don't need explicit removal from `formData`.
-      const { full_name, ...profileFieldsToUpdate } = formData;
+      // ✅ CRITICAL: Remove built-in fields + full_name from UserProfile
+      const { 
+        full_name, user_id, id, created_date, updated_date, created_by, 
+        ...cleanProfileData 
+      } = formData;
       
-      // Update UserProfile with cleaned data and potentially new avatar_url
-      if (profileData?.id) {
-        console.log('📝 Updating UserProfile with:', profileFieldsToUpdate, 'and avatar_url:', avatarUrl);
+      console.log('📝 Cleaned profile data (without full_name):', cleanProfileData);
+      
+      // ✅ Update UserProfile with cleaned data
+      if (!profileData?.id) {
+        throw new Error('Không tìm thấy profile ID');
+      }
+      
+      try {
         const updatedProfile = await base44.entities.UserProfile.update(profileData.id, {
-          ...profileFieldsToUpdate,
+          ...cleanProfileData,
           avatar_url: avatarUrl
         });
         console.log('✅ UserProfile updated:', updatedProfile);
         return updatedProfile;
+      } catch (error) {
+        console.error('❌ Failed to update UserProfile:', error);
+        throw new Error('Không thể cập nhật profile: ' + error.message);
       }
-      return null; // Should not happen if profileData.id exists, but good for type safety
     },
     onSuccess: async (updatedProfile) => {
-      console.log('✅ Mutation SUCCESS:', updatedProfile);
+      console.log('✅ [UserProfile] Mutation SUCCESS');
       
-      // ✅ CRITICAL: Invalidate the userProfile query to refetch the latest data
-      await queryClient.invalidateQueries({ queryKey: ['userProfile'] });
-      
-      // ✅ CRITICAL: Update currentUser state with the latest user data (including full_name)
-      const refreshedUser = await base44.auth.me();
-      setCurrentUser(refreshedUser);
-      
-      // ✅ CRITICAL: Update profileData state immediately with the response from the profile update
-      if (updatedProfile) {
-        setProfileData(updatedProfile);
+      try {
+        // ✅ CRITICAL: Invalidate and wait
+        console.log('🔄 Invalidating userProfile query...');
+        await queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+        
+        // ✅ CRITICAL: Refresh currentUser from server
+        console.log('🔄 Refreshing currentUser from server...');
+        const refreshedUser = await base44.auth.me();
+        console.log('✅ Refreshed user:', refreshedUser);
+        setCurrentUser(refreshedUser);
+        
+        // ✅ CRITICAL: Update profileData state immediately
+        if (updatedProfile) {
+          console.log('✅ Updating profileData state');
+          setProfileData(updatedProfile);
+        }
+        
+        // ✅ Re-populate editForm with new data
+        setEditForm({
+          full_name: refreshedUser.full_name || '',
+          phone: updatedProfile.phone || '',
+          date_of_birth: updatedProfile.date_of_birth || '',
+          gender: updatedProfile.gender || '',
+          ethnicity: updatedProfile.ethnicity || '',
+          religion: updatedProfile.religion || '',
+          address: updatedProfile.address || '',
+          current_address: updatedProfile.current_address || '',
+          province: updatedProfile.province || '',
+          district: updatedProfile.district || '',
+          ward: updatedProfile.ward || '',
+          emergency_contact: updatedProfile.emergency_contact || '',
+          bio: updatedProfile.bio || '',
+          father_name: updatedProfile.father_name || '',
+          father_phone: updatedProfile.father_phone || '',
+          father_email: updatedProfile.father_email || '',
+          father_job: updatedProfile.father_job || '',
+          father_workplace: updatedProfile.father_workplace || '',
+          mother_name: updatedProfile.mother_name || '',
+          mother_phone: updatedProfile.mother_phone || '',
+          mother_email: updatedProfile.mother_email || '',
+          mother_job: updatedProfile.mother_job || '',
+          mother_workplace: updatedProfile.mother_workplace || '',
+          guardian_name: updatedProfile.guardian_name || '',
+          guardian_phone: updatedProfile.guardian_phone || '',
+          guardian_email: updatedProfile.guardian_email || '',
+          guardian_relationship: updatedProfile.guardian_relationship || '',
+          family_status: updatedProfile.family_status || '',
+          economic_status: updatedProfile.economic_status || '',
+          special_circumstances: updatedProfile.special_circumstances || '',
+          health_notes: updatedProfile.health_notes || '',
+          allergies: updatedProfile.allergies || ''
+        });
+        
+        console.log('✅ All updates completed successfully');
+        toast.success('✅ Đã cập nhật hồ sơ!');
+        setShowEditProfileModal(false);
+        setAvatarFile(null);
+      } catch (error) {
+        console.error('❌ Error in onSuccess handler:', error);
+        toast.error('❌ Lỗi khi làm mới dữ liệu: ' + error.message);
       }
-      
-      toast.success('✅ Đã cập nhật hồ sơ!');
-      setShowEditProfileModal(false);
-      setAvatarFile(null); // Clear avatar file input
     },
     onError: (error) => {
-      console.error('❌ Mutation ERROR:', error);
-      toast.error(`❌ Lỗi: ${error.message || 'Không thể cập nhật hồ sơ.'}`);
+      console.error('❌ [UserProfile] Mutation ERROR:', error);
+      toast.error(`❌ Lỗi: ${error.message}`);
     }
   });
 
