@@ -10,6 +10,7 @@ import SeoSchema from "@/components/SeoSchema";
 import LoadingScreen from "@/components/LoadingScreen";
 import BackToTop from "@/components/BackToTop";
 import { base44 } from "@/api/base44Client";
+import { useQuery } from "@tanstack/react-query";
 
 export default function Layout({ children, currentPageName }) {
   const location = useLocation();
@@ -21,12 +22,34 @@ export default function Layout({ children, currentPageName }) {
   const [userRole, setUserRole] = React.useState(null);
   const [currentUser, setCurrentUser] = React.useState(null);
   const [showUserMenu, setShowUserMenu] = React.useState(false);
-  const [showServicesDropdown, setShowServicesDropdown] = React.useState(false); // New state for services dropdown
+  const [showServicesDropdown, setShowServicesDropdown] = React.useState(false);
   const userMenuRef = React.useRef(null);
-  const servicesDropdownRef = React.useRef(null); // New ref for services dropdown
+  const servicesDropdownRef = React.useRef(null);
   const [authError, setAuthError] = React.useState(false);
   const isAuthChecking = React.useRef(true);
   const [userPermissions, setUserPermissions] = useState([]);
+
+  // Fetch public settings for footer & nav
+  const { data: settings = [] } = useQuery({
+    queryKey: ['publicSettings'],
+    queryFn: async () => {
+      try {
+        const all = await base44.entities.SystemSettings.filter({ is_public: true });
+        return Array.isArray(all) ? all : [];
+      } catch (error) {
+        console.error('Error loading settings:', error);
+        return [];
+      }
+    },
+    initialData: [],
+    staleTime: 5 * 60 * 1000 // Cache 5 minutes
+  });
+
+  // Helper to get setting
+  const getSetting = React.useCallback((key, defaultValue = '') => {
+    const setting = settings.find(s => s.setting_key === key);
+    return setting?.setting_value || defaultValue;
+  }, [settings]);
 
   React.useEffect(() => {
     const checkUserRole = async () => {
@@ -35,32 +58,27 @@ export default function Layout({ children, currentPageName }) {
         setAuthError(false);
         
         const user = await base44.auth.me();
-        console.log('Current logged in user:', user);
         setCurrentUser(user);
         
         if (user) {
           if (user.role === 'admin') {
             setUserRole('admin');
-            console.log('User is Base44 admin');
             setUserPermissions(['manage_all_users']);
           } else {
             try {
               const profiles = await base44.entities.UserProfile.filter({ user_id: user.id });
               
               if (!profiles || profiles.length === 0) {
-                console.log('Creating UserProfile for extended data:', user.id);
                 await base44.entities.UserProfile.create({
                   user_id: user.id,
                   role: 'student'
                 });
-                console.log('UserProfile created successfully');
                 setUserRole('student');
                 setUserPermissions([]);
               } else {
                 const profile = profiles[0];
                 const currentProfileRole = profile.role || 'user';
                 setUserRole(currentProfileRole);
-                console.log('UserProfile found, role:', currentProfileRole);
                 
                 try {
                   const rolePerms = await base44.entities.RolePermission.filter({
@@ -69,26 +87,20 @@ export default function Layout({ children, currentPageName }) {
                   });
                   const permissions = rolePerms.map(rp => rp.permission_key);
                   setUserPermissions(permissions);
-                  console.log('Permissions for role', currentProfileRole, ':', permissions);
                 } catch (permError) {
-                  console.error("Error fetching permissions:", permError);
                   setUserPermissions([]);
                 }
               }
             } catch (profileError) {
-              console.error("Error with UserProfile:", profileError);
               setUserRole('user');
               setUserPermissions([]);
             }
           }
         } else {
-          console.log('No user logged in');
           setUserRole(null);
           setUserPermissions([]);
         }
       } catch (error) {
-        console.error("Error checking auth:", error);
-        
         const isAuthError = error.message?.toLowerCase().includes('authentication') || 
                            error.message?.toLowerCase().includes('not authenticated') ||
                            error.message?.toLowerCase().includes('unauthorized');
@@ -111,8 +123,7 @@ export default function Layout({ children, currentPageName }) {
       setIsScrolled(window.scrollY > 80);
     };
 
-    const scrollHandler = (e) => handleScroll();
-    window.addEventListener('scroll', scrollHandler, { passive: true });
+    window.addEventListener('scroll', handleScroll, { passive: true });
 
     const openBookingModal = () => {
       setInitialService(null);
@@ -140,7 +151,7 @@ export default function Layout({ children, currentPageName }) {
     document.addEventListener('mousedown', handleClickOutside);
 
     return () => {
-      window.removeEventListener('scroll', scrollHandler);
+      window.removeEventListener('scroll', handleScroll);
       window.removeEventListener('open-booking-modal', openBookingModal);
       window.removeEventListener('open-booking-modal-with-service', openBookingModalWithService);
       document.removeEventListener('mousedown', handleClickOutside);
@@ -158,13 +169,8 @@ export default function Layout({ children, currentPageName }) {
 
   const handleLogout = async () => {
     if (window.confirm('Bạn có chắc muốn đăng xuất?')) {
-      try {
-        await base44.auth.logout();
-        window.location.href = createPageUrl("/");
-      } catch (error) {
-        console.error("Error during logout:", error);
-        alert("Đăng xuất không thành công. Vui lòng thử lại.");
-      }
+      await base44.auth.logout();
+      window.location.href = createPageUrl("/");
     }
   };
 
@@ -217,7 +223,7 @@ export default function Layout({ children, currentPageName }) {
       'AdminDashboard', 'AdminUsers', 'AdminAppointments', 'AdminSchools', 'AdminSchoolTypes',
       'AdminTestResults', 'AdminTestManagement', 'AdminServices', 'AdminReports', 'AdminRBAC',
       'AdminAuditLog', 'AdminNotifications', 'AdminSettings', 'AdminCodeManagement', 'AdminCodeInventory',
-      'AdminAcademicStructure', 'AdminTeachingAssignments',
+      'AdminAcademicStructure', 'AdminTeachingAssignments', 'AdminCMS', 'AdminStudentInfo',
       'StudentManagement', 'TeacherManagement', 'StudentProgress',
       'ClassAnalytics', 'BulkImportStudents', 'AcademicRecords'
     ];
@@ -313,7 +319,7 @@ export default function Layout({ children, currentPageName }) {
       >
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <div className="flex items-center justify-between pt-4">
-            <Link to="/" className="flex items-center gap-3 group" aria-label="CỬA SỔ NGHỀ NGHIỆP - Home">
+            <Link to="/" className="flex items-center gap-3 group" aria-label={`${getSetting('company_name', 'CỬA SỔ NGHỀ NGHIỆP')} - Home`}>
               <div className="relative">
                 <Compass className={`w-10 h-10 transition-all duration-300 ${
                   isScrolled || isMenuOpen ? 'text-orange-600' : 'text-white'
@@ -323,12 +329,12 @@ export default function Layout({ children, currentPageName }) {
                 <span className={`font-display text-xl font-bold transition-all duration-300 ${
                   isScrolled || isMenuOpen ? 'text-gray-900' : 'text-white text-shadow-dark'
                 }`}>
-                  CỬA SỔ NGHỀ NGHIỆP
+                  {getSetting('company_name', 'CỬA SỔ NGHỀ NGHIỆP')}
                 </span>
                 <span className={`font-body text-xs tracking-wider transition-all duration-300 ${
                   isScrolled || isMenuOpen ? 'text-gray-600' : 'text-white/80 text-shadow-dark'
                 }`}>
-                  Career Guidance
+                  {getSetting('company_tagline', 'Career Guidance')}
                 </span>
               </div>
             </Link>
@@ -345,18 +351,22 @@ export default function Layout({ children, currentPageName }) {
                             ? 'text-orange-600' 
                             : (isScrolled || isMenuOpen ? 'text-orange-700' : 'text-white text-shadow-dark')
                         }`}
+                        aria-expanded={showServicesDropdown}
+                        aria-haspopup="true"
                       >
                         {item.name}
                         <ChevronDown className="w-4 h-4" />
                       </button>
                       {showServicesDropdown && (
-                        <div className="absolute top-full left-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-gray-200 py-2 z-50">
+                        <div className="absolute top-full left-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-gray-200 py-2 z-50" role="menu" aria-orientation="vertical" tabIndex={-1}>
                           {item.dropdownItems.map((dropItem) => (
                             <Link
                               key={dropItem.name}
                               to={dropItem.url}
                               onClick={() => setShowServicesDropdown(false)}
                               className="block px-4 py-2 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-600 transition-colors"
+                              role="menuitem"
+                              tabIndex={0}
                             >
                               {dropItem.name}
                             </Link>
@@ -403,6 +413,9 @@ export default function Layout({ children, currentPageName }) {
                         ? 'bg-gray-100 hover:bg-gray-200 text-gray-900' 
                         : 'bg-white/20 hover:bg-white/30 text-white backdrop-blur-sm'
                     }`}
+                    aria-label="User menu"
+                    aria-expanded={showUserMenu}
+                    aria-haspopup="true"
                   >
                     <div className="w-7 h-7 bg-orange-600 rounded-full flex items-center justify-center">
                       <UserIcon className="w-4 h-4 text-white" />
@@ -411,7 +424,7 @@ export default function Layout({ children, currentPageName }) {
                   </button>
 
                   {showUserMenu && (
-                    <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-gray-200 py-2 z-50">
+                    <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-gray-200 py-2 z-50" role="menu" aria-orientation="vertical" tabIndex={-1}>
                       <div className="px-4 py-3 border-b border-gray-200">
                         <p className="text-sm font-medium text-gray-900">
                           {currentUser?.full_name || currentUser?.email || 'Người dùng'}
@@ -435,6 +448,8 @@ export default function Layout({ children, currentPageName }) {
                           to={createPageUrl("UserProfile")}
                           onClick={() => setShowUserMenu(false)}
                           className="flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-orange-50 transition-colors"
+                          role="menuitem"
+                          tabIndex={0}
                         >
                           <UserIcon className="w-4 h-4" />
                           <span className="text-sm">Hồ sơ cá nhân</span>
@@ -445,6 +460,8 @@ export default function Layout({ children, currentPageName }) {
                             to={createPageUrl("AdminDashboard")}
                             onClick={() => setShowUserMenu(false)}
                             className="flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-orange-50 transition-colors"
+                            role="menuitem"
+                            tabIndex={0}
                           >
                             <LayoutDashboard className="w-4 h-4" />
                             <span className="text-sm">Admin Dashboard</span>
@@ -456,6 +473,8 @@ export default function Layout({ children, currentPageName }) {
                             to={createPageUrl("AdminSettings")}
                             onClick={() => setShowUserMenu(false)}
                             className="flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-orange-50 transition-colors"
+                            role="menuitem"
+                            tabIndex={0}
                           >
                             <Settings className="w-4 h-4" />
                             <span className="text-sm">Cài đặt</span>
@@ -467,6 +486,8 @@ export default function Layout({ children, currentPageName }) {
                         <button
                           onClick={handleLogout}
                           className="w-full flex items-center gap-3 px-4 py-2 text-red-600 hover:bg-red-50 transition-colors"
+                          role="menuitem"
+                          tabIndex={0}
                         >
                           <LogOut className="w-4 h-4" />
                           <span className="text-sm">Đăng xuất</span>
@@ -483,6 +504,7 @@ export default function Layout({ children, currentPageName }) {
                       ? 'bg-white border-2 border-orange-600 text-orange-600 hover:bg-orange-600 hover:text-white'
                       : 'bg-white/20 backdrop-blur-sm text-white border-2 border-white/30 hover:bg-white hover:text-orange-600'
                   }`}
+                  aria-label="Login"
                 >
                   <UserIcon className="w-4 h-4" />
                   Đăng nhập
@@ -632,21 +654,23 @@ export default function Layout({ children, currentPageName }) {
       </main>
 
       <footer className="bg-gradient-to-br from-gray-900 via-indigo-900 to-purple-900 text-white relative overflow-hidden" role="contentinfo">
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS1vcGFjaXR5PSIwLjA1IiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCUyMiUyOSIvPjwvc3ZnPg==')] opacity-30" aria-hidden="true" />
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS1vcGFjaXR5PSIwLjA1IiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHwid2lkdGg9IjEwMCUiIHcpaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQlMjIlMjkiLz48L3N2Zz4=')] opacity-30" aria-hidden="true" />
         
         <div className="relative max-w-7xl mx-auto px-6 lg:px-8 py-16">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-[clamp(1rem,2vw,2.5rem)] text-center md:text-left">
             <div className="mb-[1.2em]">
-              <Link to="/" className="inline-flex items-center gap-3 mb-6 group" aria-label="CỬA SỔ NGHỀ NGHIỆP">
+              <Link to="/" className="inline-flex items-center gap-3 mb-6 group" aria-label={getSetting('company_name', 'CỬA SỔ NGHỀ NGHIỆP')}>
                 <Compass className="w-8 h-8 text-orange-400 group-hover:rotate-180 transition-transform duration-500" />
-                <span className="font-display text-xl font-bold">CỬA SỔ NGHỀ NGHIỆP</span>
+                <span className="font-display text-xl font-bold">
+                  {getSetting('company_name', 'CỬA SỔ NGHỀ NGHIỆP')}
+                </span>
               </Link>
               <p className="text-gray-300 text-sm leading-relaxed mb-6 font-body">
-                Nền tảng hướng nghiệp thông minh dành cho học sinh THCS & THPT. Chúng tôi giúp bạn hiểu bản thân, chọn nghề đúng, và định hướng tương lai một cách khoa học.
+                {getSetting('company_description', 'Nền tảng hướng nghiệp thông minh dành cho học sinh THCS & THPT. Chúng tôi giúp bạn hiểu bản thân, chọn nghề đúng, và định hướng tương lai một cách khoa học.')}
               </p>
               <div className="flex gap-4 justify-center md:justify-start">
                 <a 
-                  href="https://facebook.com" 
+                  href={getSetting('social_facebook', 'https://facebook.com')}
                   target="_blank" 
                   rel="noopener noreferrer" 
                   className="w-10 h-10 bg-white/10 hover:bg-orange-600 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-110"
@@ -655,7 +679,7 @@ export default function Layout({ children, currentPageName }) {
                   <Facebook className="w-5 h-5" />
                 </a>
                 <a 
-                  href="https://linkedin.com" 
+                  href={getSetting('social_linkedin', 'https://linkedin.com')}
                   target="_blank" 
                   rel="noopener noreferrer" 
                   className="w-10 h-10 bg-white/10 hover:bg-orange-600 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-110"
@@ -684,15 +708,19 @@ export default function Layout({ children, currentPageName }) {
               <ul className="space-y-3 text-sm font-body">
                 <li className="flex items-start gap-3">
                   <MapPin className="w-5 h-5 text-orange-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-300">523, Phạm Hùng, Phường Bà Ria, TP Bà Ria, Bà Rịa - Vũng Tàu</span>
+                  <span className="text-gray-300">{getSetting('contact_address', '523, Phạm Hùng, Phường Bà Ria, TP Bà Ria, Bà Rịa - Vũng Tàu')}</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <Phone className="w-5 h-5 text-orange-400 flex-shrink-0" />
-                  <a href="tel:(0254) 3 826 178" className="text-gray-300 hover:text-orange-300 transition-colors duration-300">(0254) 3 826 178</a>
+                  <a href={`tel:${getSetting('contact_phone', '(0254) 3 826 178').replace(/\s/g, '')}`} className="text-gray-300 hover:text-orange-300 transition-colors duration-300">
+                    {getSetting('contact_phone', '(0254) 3 826 178')}
+                  </a>
                 </li>
                 <li className="flex items-center gap-3">
                   <Mail className="w-5 h-5 text-orange-400 flex-shrink-0" />
-                  <a href="mailto:c2nguyendu.baria.bariavungtau@moet.edu.vn" className="text-gray-300 hover:text-orange-300 transition-colors duration-300 break-all">c2nguyendu.baria.bariavungtau@moet.edu.vn</a>
+                  <a href={`mailto:${getSetting('contact_email', 'c2nguyendu.baria.bariavungtau@moet.edu.vn')}`} className="text-gray-300 hover:text-orange-300 transition-colors duration-300 break-all">
+                    {getSetting('contact_email', 'c2nguyendu.baria.bariavungtau@moet.edu.vn')}
+                  </a>
                 </li>
               </ul>
             </div>
@@ -720,7 +748,7 @@ export default function Layout({ children, currentPageName }) {
           <div className="mt-12 pt-8 border-t border-gray-700">
             <div className="flex flex-col md:flex-row justify-between items-center gap-4">
               <p className="text-sm text-gray-400 font-body">
-                © 2024 Cửa Sổ Nghề Nghiệp. All rights reserved.
+                © 2024 {getSetting('company_name', 'Cửa Sổ Nghề Nghiệp')}. All rights reserved.
               </p>
               
               <nav aria-label="Legal links" className="flex flex-wrap justify-center gap-4 md:gap-6 text-sm font-body">
