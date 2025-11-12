@@ -1,6 +1,8 @@
 import React from "react";
 import { motion } from "framer-motion";
-import { Sparkles, ArrowRight } from "lucide-react";
+import { 
+  Sparkles, ArrowRight, Target, Users, BookOpen, TrendingUp 
+} from "lucide-react";
 import Breadcrumb from "@/components/Breadcrumb";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
@@ -30,6 +32,14 @@ export default function Gallery() {
     },
     initialData: []
   });
+
+  // ✅ FIX: Icon mapping object (no require())
+  const iconMap = {
+    Target,
+    Users,
+    BookOpen,
+    TrendingUp
+  };
 
   // Fallback static data if CMS not configured
   const defaultHighlights = [
@@ -64,17 +74,6 @@ export default function Gallery() {
   const breadcrumbItems = [
     { label: "Về chúng tôi" }
   ];
-
-  // ✅ Dynamic icon mapping
-  const getIcon = (iconName) => {
-    const icons = {
-      Target: require('lucide-react').Target,
-      Users: require('lucide-react').Users,
-      BookOpen: require('lucide-react').BookOpen,
-      TrendingUp: require('lucide-react').TrendingUp
-    };
-    return icons[iconName] || icons.Target;
-  };
 
   return (
     <div className="pt-32 pb-24 bg-gradient-to-b from-blue-50 to-white min-h-screen">
@@ -118,7 +117,7 @@ export default function Gallery() {
         <section className="mb-16">
           <div className="grid md:grid-cols-2 gap-8">
             {highlightsToShow.map((item, index) => {
-              const IconComponent = item.icon ? getIcon(item.icon) : getIcon('Target');
+              const IconComponent = iconMap[item.icon] || Target;
               
               return (
                 <motion.div
