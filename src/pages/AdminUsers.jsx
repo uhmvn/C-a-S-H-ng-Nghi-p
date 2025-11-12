@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
@@ -28,22 +27,21 @@ function AdminUsersContent() {
   const [filterRole, setFilterRole] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [selectedUser, setSelectedUser] = useState(null);
-  const [isEditModalOpen, setIsEditModal] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false); // ✅ FIXED: Correct state name
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false });
   const [editForm, setEditForm] = useState({});
   const [inviteForm, setInviteForm] = useState({ email: '', full_name: '', role: 'user' });
-  const [activeTab, setActiveTab] = useState('basic'); // basic, academic, code
+  const [activeTab, setActiveTab] = useState('basic');
   const [selectedCodeId, setSelectedCodeId] = useState('');
   const [showSecretPreview, setShowSecretPreview] = useState(false);
 
-  // Fetch users
   const { data: users = [], isLoading: usersLoading } = useQuery({
     queryKey: ['users'],
     queryFn: async () => {
       try {
         const data = await base44.entities.User.list('-created_date', 1000);
-        return data || [];
+        return Array.isArray(data) ? data : []; // ✅ SAFETY CHECK
       } catch (error) {
         console.error('Error fetching users:', error);
         return [];
@@ -52,13 +50,12 @@ function AdminUsersContent() {
     initialData: [],
   });
 
-  // Fetch profiles
   const { data: profiles = [], isLoading: profilesLoading } = useQuery({
     queryKey: ['profiles'],
     queryFn: async () => {
       try {
         const data = await base44.entities.UserProfile.list('-created_date', 1000);
-        return data || [];
+        return Array.isArray(data) ? data : []; // ✅ SAFETY CHECK
       } catch (error) {
         console.error('Error fetching profiles:', error);
         return [];
@@ -69,49 +66,41 @@ function AdminUsersContent() {
 
   const isLoading = usersLoading || profilesLoading;
 
-  // NEW: Fetch available codes - FIX: enabled chỉ cần modal open, không cần đợi tab code
   const { data: availableCodes = [] } = useQuery({
     queryKey: ['availableCodes', editForm.profile_role],
     queryFn: async () => {
       try {
         const allCodes = await base44.entities.CodeInventory.list('-generated_at', 500);
-        console.log('[AdminUsers] All codes from inventory:', allCodes);
-        console.log('[AdminUsers] Current profile_role:', editForm.profile_role);
+        const codesArray = Array.isArray(allCodes) ? allCodes : []; // ✅ SAFETY CHECK
         
-        const filtered = allCodes.filter(c => {
+        const filtered = codesArray.filter(c => {
           const statusMatch = c.status === 'available';
           const roleMatch = !editForm.profile_role || c.role === editForm.profile_role;
-          console.log(`[AdminUsers] Code ${c.user_code}: status=${c.status} (${statusMatch}), role=${c.role} vs ${editForm.profile_role} (${roleMatch})`);
           return statusMatch && roleMatch;
         });
         
-        console.log('[AdminUsers] Filtered available codes:', filtered);
         return filtered;
       } catch (error) {
         console.error('Error fetching codes:', error);
         return [];
       }
     },
-    enabled: isEditModalOpen, // FIX: Fetch ngay khi modal mở, không cần đợi tab code
+    enabled: isEditModalOpen,
     initialData: [],
-    staleTime: 5 * 60 * 1000,
-    cacheTime: 10 * 60 * 1000,
   });
 
-  // ✅ NEW STRATEGY: Update UserProfile.full_name, NOT User.full_name
   const updateProfileMutation = useMutation({
     mutationFn: async ({ profileId, data }) => {
-      console.log('📝 [AdminUsers] Updating UserProfile (NEW: with full_name):', profileId, data);
+      console.log('📝 [AdminUsers] Updating UserProfile:', profileId, data);
       const result = await base44.entities.UserProfile.update(profileId, data);
       console.log('✅ [AdminUsers] UserProfile updated:', result);
       return result;
     },
     onSuccess: async () => {
-      console.log('✅ [AdminUsers] Profile update success, invalidating cache...');
+      console.log('✅ [AdminUsers] Profile update success');
       await queryClient.invalidateQueries({ queryKey: ['profiles'] });
       await queryClient.invalidateQueries({ queryKey: ['students-info'] });
       await queryClient.invalidateQueries({ queryKey: ['studentProfiles'] });
-      console.log('✅ [AdminUsers] Profile cache invalidated');
     },
     onError: (error) => {
       console.error('❌ [AdminUsers] Profile update error:', error);
@@ -119,16 +108,14 @@ function AdminUsersContent() {
     }
   });
 
-  // ✅ Keep User mutation for role only
   const updateUserMutation = useMutation({
     mutationFn: async ({ userId, data }) => {
-      console.log('📝 [AdminUsers] Updating User (role only):', userId, data);
+      console.log('📝 [AdminUsers] Updating User:', userId, data);
       const result = await base44.entities.User.update(userId, data);
       console.log('✅ [AdminUsers] User updated:', result);
       return result;
     },
     onSuccess: async () => {
-      console.log('✅ [AdminUsers] User update success');
       await queryClient.invalidateQueries({ queryKey: ['users'] });
     },
     onError: (error) => {
@@ -137,22 +124,19 @@ function AdminUsersContent() {
     }
   });
 
-  // Delete user mutation
   const deleteUserMutation = useMutation({
     mutationFn: async (userId) => {
-      // Delete profile first
       const profile = profiles.find(p => p.user_id === userId);
       if (profile) {
         await base44.entities.UserProfile.delete(profile.id);
       }
-      // Then delete user
       await base44.entities.User.delete(userId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
       queryClient.invalidateQueries({ queryKey: ['profiles'] });
       queryClient.invalidateQueries({ queryKey: ['students-info'] });
-      queryClient.invalidateQueries({ queryKey: ['studentProfiles'] }); // NEW: Invalidate studentProfiles
+      queryClient.invalidateQueries({ queryKey: ['studentProfiles'] });
       toast.success('Xóa user thành công!');
     },
     onError: (error) => {
@@ -160,20 +144,17 @@ function AdminUsersContent() {
     }
   });
 
-  // NEW: Assign code mutation
   const assignCodeMutation = useMutation({
     mutationFn: async ({ codeId, profileId, userId }) => {
       const code = availableCodes.find(c => c.id === codeId);
       if (!code) throw new Error('Không tìm thấy mã');
 
-      // Update profile with code
       await base44.entities.UserProfile.update(profileId, {
         user_code: code.user_code,
         secret_code: code.secret_code,
-        status: 'active' // Automatically set to active when code is assigned
+        status: 'active'
       });
 
-      // Update code inventory
       await base44.entities.CodeInventory.update(codeId, {
         status: 'assigned',
         assigned_to_user_id: userId,
@@ -187,17 +168,15 @@ function AdminUsersContent() {
       queryClient.invalidateQueries({ queryKey: ['profiles'] });
       queryClient.invalidateQueries({ queryKey: ['availableCodes'] });
       queryClient.invalidateQueries({ queryKey: ['students-info'] });
-      queryClient.invalidateQueries({ queryKey: ['studentProfiles'] }); // NEW: Invalidate studentProfiles
-      // toast.success('Cấp mã thành công!'); // Handled by handleSaveEdit
+      queryClient.invalidateQueries({ queryKey: ['studentProfiles'] });
     },
     onError: (error) => {
-      // toast.error(`Lỗi cấp mã: ${error.message}`); // Handled by handleSaveEdit
-      throw error; // Re-throw to be caught by handleSaveEdit
+      throw error;
     }
   });
 
-  // Filtered users with profiles
   const usersWithProfiles = useMemo(() => {
+    if (!Array.isArray(users)) return []; // ✅ SAFETY CHECK
     return users.map(user => {
       const profile = profiles.find(p => p.user_id === user.id);
       return { ...user, profile };
@@ -208,7 +187,7 @@ function AdminUsersContent() {
     return usersWithProfiles.filter(user => {
       const matchesSearch = !searchTerm ||
         user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (user.profile?.full_name || user.full_name)?.toLowerCase().includes(searchTerm.toLowerCase()); // NEW: Search by profile full_name first
+        (user.profile?.full_name || user.full_name)?.toLowerCase().includes(searchTerm.toLowerCase());
       
       const matchesRole = filterRole === "all" || user.profile?.role === filterRole;
       const matchesStatus = filterStatus === "all" || user.profile?.status === filterStatus;
@@ -229,7 +208,7 @@ function AdminUsersContent() {
   const handleEdit = (user) => {
     setSelectedUser(user);
     setEditForm({
-      full_name: user.profile?.full_name || user.full_name || '', // ✅ Priority: UserProfile.full_name
+      full_name: user.profile?.full_name || user.full_name || '',
       email: user.email || '',
       role: user.role || 'user',
       profile_role: user.profile?.role || 'student',
@@ -238,46 +217,38 @@ function AdminUsersContent() {
       class_name: user.profile?.class_name || '',
       grade_level: user.profile?.grade_level || ''
     });
-    // NEW: Reset modal state for tabs and code
     setActiveTab('basic');
     setSelectedCodeId('');
     setShowSecretPreview(false);
-    setIsEditModal(true);
+    setIsEditModalOpen(true); // ✅ FIXED
   };
 
   const handleSaveEdit = async () => {
     if (!selectedUser) return;
 
     try {
-      console.log('🔄 [AdminUsers] Starting save edit (NEW STRATEGY)...');
-      console.log('📦 Edit form:', editForm);
+      console.log('🔄 [AdminUsers] Starting save...');
       
       if (!editForm.full_name || editForm.full_name.trim() === '') {
         toast.error('❌ Họ và tên không được để trống');
         return;
       }
       
-      // ✅ Step 1: Update User.role only (if needed)
       if (editForm.role !== selectedUser.role) {
-        console.log('📝 Step 1: Updating User.role...');
+        console.log('📝 Updating User.role...');
         await updateUserMutation.mutateAsync({
           userId: selectedUser.id,
           data: { role: editForm.role }
         });
-        console.log('✅ Step 1 complete');
-      } else {
-        console.log('⏭️ Step 1 skipped (role unchanged)');
       }
 
       let currentProfileId = selectedUser.profile?.id;
 
-      // ✅ Step 2: Update or create Profile (WITH full_name)
-      console.log('📝 Step 2: Updating/Creating UserProfile (with full_name)...');
       if (selectedUser.profile) {
         await updateProfileMutation.mutateAsync({
           profileId: selectedUser.profile.id,
           data: {
-            full_name: editForm.full_name, // ✅ Save to UserProfile
+            full_name: editForm.full_name,
             role: editForm.profile_role,
             status: editForm.profile_status,
             school_name: editForm.school_name,
@@ -285,12 +256,10 @@ function AdminUsersContent() {
             grade_level: editForm.grade_level
           }
         });
-        console.log('✅ Step 2 complete (updated with full_name)');
       } else {
-        console.log('Creating new UserProfile with full_name...');
         const newProfile = await base44.entities.UserProfile.create({
           user_id: selectedUser.id,
-          full_name: editForm.full_name, // ✅ Save to UserProfile
+          full_name: editForm.full_name,
           role: editForm.profile_role,
           status: editForm.profile_status,
           school_name: editForm.school_name,
@@ -299,44 +268,32 @@ function AdminUsersContent() {
         });
         currentProfileId = newProfile.id;
         await queryClient.invalidateQueries({ queryKey: ['profiles'] });
-        console.log('✅ Step 2 complete (created with full_name)');
       }
 
-      // ✅ Step 3: Assign code if selected
       if (selectedCodeId && currentProfileId) {
-        console.log('📝 Step 3: Checking code assignment...');
-        // Fetch the most up-to-date profile data, especially if it was just created
         const updatedProfileList = await queryClient.fetchQuery({ queryKey: ['profiles'] });
         const profile = updatedProfileList.find(p => p.id === currentProfileId);
         
-        if (!profile?.user_code) { // Only assign if no existing code
-          console.log('Assigning code...');
+        if (!profile?.user_code) {
           await assignCodeMutation.mutateAsync({
             codeId: selectedCodeId,
             profileId: currentProfileId,
             userId: selectedUser.id
           });
-          console.log('✅ Step 3 complete (assigned)');
-        } else {
-          console.log('⏭️ Step 3 skipped (already has code)');
         }
-      } else {
-        console.log('⏭️ Step 3 skipped (no code selected)');
       }
 
-      // ✅ CRITICAL: Wait for all invalidations
-      console.log('🔄 Invalidating all caches...');
       await queryClient.invalidateQueries({ queryKey: ['users'] });
       await queryClient.invalidateQueries({ queryKey: ['profiles'] });
       await queryClient.invalidateQueries({ queryKey: ['students-info'] });
-      await queryClient.invalidateQueries({ queryKey: ['studentProfiles'] }); // NEW: Invalidate studentProfiles
+      await queryClient.invalidateQueries({ queryKey: ['studentProfiles'] });
       
-      console.log('✅ [AdminUsers] All updates completed successfully');
-      toast.success('✅ Cập nhật người dùng thành công!');
-      setIsEditModal(false);
+      console.log('✅ [AdminUsers] All completed');
+      toast.success('✅ Cập nhật thành công!');
+      setIsEditModalOpen(false); // ✅ FIXED
     } catch (error) {
-      console.error('❌ [AdminUsers] Error saving:', error);
-      toast.error(`❌ Lỗi: ${error.message || 'Có lỗi xảy ra khi lưu.'}`);
+      console.error('❌ Error:', error);
+      toast.error(`❌ Lỗi: ${error.message}`);
     }
   };
 
@@ -344,7 +301,7 @@ function AdminUsersContent() {
     setConfirmDialog({
       isOpen: true,
       title: 'Xóa người dùng',
-      message: `Xóa ${user.profile?.full_name || user.full_name || user.email}? Hành động này không thể hoàn tác.`, // NEW: Reflect full_name priority
+      message: `Xóa ${user.profile?.full_name || user.full_name || user.email}?`,
       type: 'danger',
       onConfirm: () => {
         deleteUserMutation.mutate(user.id);
@@ -360,7 +317,6 @@ function AdminUsersContent() {
   return (
     <AdminLayout>
       <div className="p-6 lg:p-8">
-        {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-6">
             <div>
@@ -385,7 +341,6 @@ function AdminUsersContent() {
             </div>
           </div>
 
-          {/* Stats */}
           <div className="grid md:grid-cols-4 gap-4">
             <div className="bg-white rounded-2xl p-4 shadow-sm border">
               <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
@@ -406,7 +361,6 @@ function AdminUsersContent() {
           </div>
         </div>
 
-        {/* Filters */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border mb-6">
           <div className="grid md:grid-cols-3 gap-4">
             <div className="relative">
@@ -422,7 +376,7 @@ function AdminUsersContent() {
             <select
               value={filterRole}
               onChange={(e) => setFilterRole(e.target.value)}
-              className="px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500"
             >
               <option value="all">Tất cả vai trò</option>
               {Object.entries(roleLabels).map(([key, label]) => (
@@ -432,7 +386,7 @@ function AdminUsersContent() {
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500"
             >
               <option value="all">Tất cả trạng thái</option>
               <option value="active">Hoạt động</option>
@@ -443,7 +397,6 @@ function AdminUsersContent() {
           </div>
         </div>
 
-        {/* Users Table */}
         {isLoading ? (
           <div className="text-center py-12">
             <Loader2 className="w-12 h-12 animate-spin text-indigo-600 mx-auto" />
@@ -466,7 +419,6 @@ function AdminUsersContent() {
                   <tr key={user.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4">
                       <div>
-                        {/* ✅ Priority: UserProfile.full_name > User.full_name */}
                         <p className="font-bold text-gray-900">
                           {user.profile?.full_name || user.full_name || 'Chưa đặt tên'}
                         </p>
@@ -521,11 +473,10 @@ function AdminUsersContent() {
           </div>
         )}
 
-        {/* Enhanced Edit Modal with Tabs */}
         {isEditModalOpen && selectedUser && (
           <div 
             className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-            onClick={() => setIsEditModal(false)}
+            onClick={() => setIsEditModalOpen(false)} // ✅ FIXED
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
@@ -533,68 +484,52 @@ function AdminUsersContent() {
               onClick={(e) => e.stopPropagation()}
               className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col"
             >
-              {/* Header */}
               <div className="p-6 border-b">
                 <h3 className="text-xl font-bold text-gray-900">Chỉnh sửa người dùng</h3>
                 <p className="text-sm text-gray-600 mt-1">{selectedUser.email}</p>
-                <p className="text-xs text-indigo-600 mt-2">💡 Thay đổi ở đây sẽ đồng bộ với trang UserProfile của user</p>
               </div>
 
-              {/* Tabs */}
               <div className="border-b">
                 <div className="flex px-6">
                   <button
                     onClick={() => setActiveTab('basic')}
-                    className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                      activeTab === 'basic'
-                        ? 'border-indigo-600 text-indigo-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                    className={`px-4 py-3 text-sm font-medium border-b-2 ${
+                      activeTab === 'basic' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500'
                     }`}
                   >
                     Thông tin cơ bản
                   </button>
                   <button
                     onClick={() => setActiveTab('academic')}
-                    className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                      activeTab === 'academic'
-                        ? 'border-indigo-600 text-indigo-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                    className={`px-4 py-3 text-sm font-medium border-b-2 ${
+                      activeTab === 'academic' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500'
                     }`}
                   >
                     Thông tin học vụ
                   </button>
                   <button
                     onClick={() => setActiveTab('code')}
-                    className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors relative ${
-                      activeTab === 'code'
-                        ? 'border-indigo-600 text-indigo-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                    className={`px-4 py-3 text-sm font-medium border-b-2 ${
+                      activeTab === 'code' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500'
                     }`}
                   >
-                    <span className="flex items-center gap-2">
-                      Cấp mã
-                      {availableCodes.length > 0 && !selectedUser.profile?.user_code && (
-                        <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs">
-                          {availableCodes.length}
-                        </span>
-                      )}
-                    </span>
+                    Cấp mã
                   </button>
                 </div>
               </div>
 
-              {/* Content */}
               <div className="flex-1 overflow-y-auto p-6">
                 {activeTab === 'basic' && (
                   <div className="space-y-4">
                     <div className="grid md:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium mb-2">Họ tên</label>
+                        <label className="block text-sm font-medium mb-2">Họ tên *</label>
                         <input
                           type="text"
                           value={editForm.full_name}
                           onChange={(e) => setEditForm({...editForm, full_name: e.target.value})}
-                          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                          className="w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                          placeholder="Nhập họ và tên"
                         />
                       </div>
                       <div>
@@ -614,7 +549,7 @@ function AdminUsersContent() {
                         <select
                           value={editForm.role}
                           onChange={(e) => setEditForm({...editForm, role: e.target.value})}
-                          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                          className="w-full px-4 py-2 border rounded-lg"
                         >
                           <option value="user">User</option>
                           <option value="admin">Admin</option>
@@ -626,9 +561,9 @@ function AdminUsersContent() {
                           value={editForm.profile_role}
                           onChange={(e) => {
                             setEditForm({...editForm, profile_role: e.target.value});
-                            setSelectedCodeId(''); // Reset selected code when role changes
+                            setSelectedCodeId('');
                           }}
-                          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                          className="w-full px-4 py-2 border rounded-lg"
                         >
                           {Object.entries(roleLabels).map(([key, label]) => (
                             <option key={key} value={key}>{label}</option>
@@ -642,7 +577,7 @@ function AdminUsersContent() {
                       <select
                         value={editForm.profile_status}
                         onChange={(e) => setEditForm({...editForm, profile_status: e.target.value})}
-                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                        className="w-full px-4 py-2 border rounded-lg"
                       >
                         <option value="pending">Chờ duyệt</option>
                         <option value="active">Hoạt động</option>
@@ -662,8 +597,7 @@ function AdminUsersContent() {
                           type="text"
                           value={editForm.school_name}
                           onChange={(e) => setEditForm({...editForm, school_name: e.target.value})}
-                          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                          placeholder="LAN, BRVU..."
+                          className="w-full px-4 py-2 border rounded-lg"
                         />
                       </div>
                       <div>
@@ -672,8 +606,7 @@ function AdminUsersContent() {
                           type="text"
                           value={editForm.class_name}
                           onChange={(e) => setEditForm({...editForm, class_name: e.target.value})}
-                          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                          placeholder="10A1, 11B2..."
+                          className="w-full px-4 py-2 border rounded-lg"
                         />
                       </div>
                       <div>
@@ -681,16 +614,12 @@ function AdminUsersContent() {
                         <select
                           value={editForm.grade_level}
                           onChange={(e) => setEditForm({...editForm, grade_level: e.target.value})}
-                          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                          className="w-full px-4 py-2 border rounded-lg"
                         >
                           <option value="">Chọn khối</option>
-                          <option value="6">Khối 6</option>
-                          <option value="7">Khối 7</option>
-                          <option value="8">Khối 8</option>
-                          <option value="9">Khối 9</option>
-                          <option value="10">Khối 10</option>
-                          <option value="11">Khối 11</option>
-                          <option value="12">Khối 12</option>
+                          {['6','7','8','9','10','11','12'].map(g => (
+                            <option key={g} value={g}>Khối {g}</option>
+                          ))}
                         </select>
                       </div>
                     </div>
@@ -706,10 +635,7 @@ function AdminUsersContent() {
                           <div>
                             <p className="font-medium text-blue-900">User đã có mã</p>
                             <p className="text-sm text-blue-700 mt-1">
-                              Mã hiện tại: <span className="font-mono font-bold">{selectedUser.profile.user_code}</span>
-                            </p>
-                            <p className="text-xs text-blue-500 mt-1">
-                              Nếu muốn thay đổi mã, hãy hủy liên kết mã cũ trong trang Quản lý mã trước.
+                              Mã: <span className="font-mono font-bold">{selectedUser.profile.user_code}</span>
                             </p>
                           </div>
                         </div>
@@ -717,92 +643,33 @@ function AdminUsersContent() {
                     ) : (
                       <>
                         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                          <div className="flex items-start gap-3">
-                            <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
-                            <div>
-                              <p className="font-medium text-yellow-900">Chưa có mã</p>
-                              <p className="text-sm text-yellow-700 mt-1">
-                                Chọn mã khả dụng từ kho để cấp cho user này
-                              </p>
-                            </div>
-                          </div>
+                          <p className="font-medium text-yellow-900">Chưa có mã</p>
+                          <p className="text-sm text-yellow-700 mt-1">Chọn mã từ kho để cấp</p>
                         </div>
 
                         <div>
                           <label className="block text-sm font-medium mb-2">
-                            Chọn mã khả dụng ({availableCodes.length} mã)
+                            Mã khả dụng ({availableCodes.length})
                           </label>
                           <select
                             value={selectedCodeId}
                             onChange={(e) => setSelectedCodeId(e.target.value)}
-                            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                            disabled={availableCodes.length === 0 || !editForm.profile_role}
+                            className="w-full px-4 py-2 border rounded-lg"
+                            disabled={availableCodes.length === 0}
                           >
                             <option value="">-- Chọn mã --</option>
                             {availableCodes.map((code) => (
                               <option key={code.id} value={code.id}>
-                                {code.user_code} {code.class_name && `(${code.class_name})`}
+                                {code.user_code}
                               </option>
                             ))}
                           </select>
-                          {availableCodes.length === 0 && (
-                            <p className="text-sm text-red-600 mt-2">
-                              Không có mã khả dụng cho vai trò {roleLabels[editForm.profile_role] || 'đã chọn'}
-                            </p>
-                          )}
-                          {!editForm.profile_role && (
-                            <p className="text-sm text-gray-500 mt-2">
-                              Chọn vai trò profile trong tab "Thông tin cơ bản" để lọc mã.
-                            </p>
-                          )}
                         </div>
 
                         {selectedCodeData && (
-                          <div className="bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg p-4">
-                            <h4 className="font-semibold text-indigo-900 mb-3">Preview mã đã chọn</h4>
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between bg-white rounded-lg p-3 shadow-sm">
-                                <div>
-                                  <p className="text-xs text-gray-600">User Code</p>
-                                  <p className="font-mono font-bold text-indigo-600">{selectedCodeData.user_code}</p>
-                                </div>
-                                <button
-                                  onClick={() => {
-                                    navigator.clipboard.writeText(selectedCodeData.user_code);
-                                    toast.success('Đã copy mã User Code!');
-                                  }}
-                                  className="text-gray-400 hover:text-indigo-600 p-1 rounded-full hover:bg-gray-100"
-                                >
-                                  <Copy className="w-4 h-4" />
-                                </button>
-                              </div>
-                              
-                              <div className="flex items-center justify-between bg-white rounded-lg p-3 shadow-sm">
-                                <div className="flex-1">
-                                  <p className="text-xs text-gray-600">Secret Code</p>
-                                  <p className="font-mono text-sm">
-                                    {showSecretPreview ? selectedCodeData.secret_code : '************'}
-                                  </p>
-                                </div>
-                                <button
-                                  onClick={() => setShowSecretPreview(!showSecretPreview)}
-                                  className="text-gray-400 hover:text-indigo-600 p-1 rounded-full hover:bg-gray-100"
-                                >
-                                  {showSecretPreview ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                </button>
-                              </div>
-
-                              <div className="grid grid-cols-2 gap-2 text-xs">
-                                <div className="bg-white rounded-lg p-2 shadow-sm">
-                                  <p className="text-gray-600">Vai trò</p>
-                                  <p className="font-medium">{roleLabels[selectedCodeData.role]}</p>
-                                </div>
-                                <div className="bg-white rounded-lg p-2 shadow-sm">
-                                  <p className="text-gray-600">Lớp</p>
-                                  <p className="font-medium">{selectedCodeData.class_name || '-'}</p>
-                                </div>
-                              </div>
-                            </div>
+                          <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+                            <p className="font-bold mb-2">Preview:</p>
+                            <p className="font-mono text-indigo-600">{selectedCodeData.user_code}</p>
                           </div>
                         )}
                       </>
@@ -811,20 +678,19 @@ function AdminUsersContent() {
                 )}
               </div>
 
-              {/* Footer */}
               <div className="flex gap-3 p-6 border-t bg-gray-50">
                 <button
-                  onClick={() => setIsEditModal(false)}
-                  className="flex-1 border border-gray-300 py-2 rounded-lg hover:bg-white"
+                  onClick={() => setIsEditModalOpen(false)} // ✅ FIXED
+                  className="flex-1 border py-2 rounded-lg"
                 >
                   Hủy
                 </button>
                 <button
                   onClick={handleSaveEdit}
-                  disabled={updateUserMutation.isPending || updateProfileMutation.isPending || assignCodeMutation.isPending}
+                  disabled={updateUserMutation.isPending || updateProfileMutation.isPending}
                   className="flex-1 bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  {(updateUserMutation.isPending || updateProfileMutation.isPending || assignCodeMutation.isPending) ? (
+                  {(updateUserMutation.isPending || updateProfileMutation.isPending) ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
                       Đang lưu...
@@ -832,7 +698,7 @@ function AdminUsersContent() {
                   ) : (
                     <>
                       <Save className="w-4 h-4" />
-                      Lưu & Đồng bộ
+                      Lưu
                     </>
                   )}
                 </button>
