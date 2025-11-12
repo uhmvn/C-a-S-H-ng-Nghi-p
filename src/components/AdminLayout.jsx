@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -6,13 +5,13 @@ import {
   LayoutDashboard, Users, BookOpen, School, Settings, FileText, Menu, X,
   ChevronDown, ChevronRight, ClipboardList, BarChart3, TestTube, Calendar,
   ShieldCheck, Bell, Activity, Code, GraduationCap, UserCheck, FolderOpen,
-  UsersRound, Home, UserCog
+  UsersRound, Home, UserCog, Edit3
 } from "lucide-react";
 
 export default function AdminLayout({ children }) {
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [expandedSections, setExpandedSections] = useState(['overview', 'management', 'academic']);
+  const [expandedSections, setExpandedSections] = useState(['overview', 'management', 'academic', 'content']);
 
   const toggleSection = (section) => {
     setExpandedSections(prev =>
@@ -38,7 +37,7 @@ export default function AdminLayout({ children }) {
       items: [
         { icon: Users, label: 'Người dùng', pageName: 'AdminUsers' },
         { icon: GraduationCap, label: 'Học sinh', pageName: 'StudentManagement' },
-        { icon: UserCog, label: 'Thông tin HS', pageName: 'AdminStudentInfo', badge: 'Mới' },
+        { icon: UserCog, label: 'Thông tin HS', pageName: 'AdminStudentInfo' },
         { icon: UsersRound, label: 'Giáo viên', pageName: 'TeacherManagement' },
         { icon: Code, label: 'Mã truy cập', pageName: 'AdminCodeManagement' },
         { icon: ClipboardList, label: 'Kho mã', pageName: 'AdminCodeInventory' },
@@ -70,9 +69,9 @@ export default function AdminLayout({ children }) {
     {
       key: 'content',
       title: 'Nội dung',
-      icon: School,
+      icon: Edit3,
       items: [
-        { icon: FileText, label: 'CMS (Về chúng tôi, Gallery)', pageName: 'AdminCMS', badge: '🆕' },
+        { icon: Edit3, label: 'CMS (Về chúng tôi, Liên hệ)', pageName: 'AdminCMS', badge: '🆕' },
         { icon: School, label: 'Trường học', pageName: 'AdminSchools' },
         { icon: ClipboardList, label: 'Loại trường', pageName: 'AdminSchoolTypes' },
         { icon: FileText, label: 'Dịch vụ', pageName: 'AdminServices' },
