@@ -59,9 +59,17 @@ export default function Schools() {
   });
 
   const filteredSchools = useMemo(() => {
-    return schools.filter(school => {
+    console.log('🔍 Filtering schools:', {
+      total: schools.length,
+      searchTerm,
+      selectedType,
+      selectedProvince,
+      schoolsData: schools
+    });
+    
+    const filtered = schools.filter(school => {
       const matchesSearch = !searchTerm || 
-        school.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        school.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         school.majors?.some(major => major.toLowerCase().includes(searchTerm.toLowerCase()));
       
       const matchesType = selectedType === "all" || school.school_type === selectedType;
@@ -70,6 +78,9 @@ export default function Schools() {
       
       return matchesSearch && matchesType && matchesProvince;
     });
+    
+    console.log('📊 Filtered schools:', filtered.length, filtered);
+    return filtered;
   }, [schools, searchTerm, selectedType, selectedProvince]);
 
   const handleSchoolClick = (school) => {
@@ -172,19 +183,31 @@ export default function Schools() {
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
             <p className="text-gray-600 mt-4">Đang tải dữ liệu...</p>
           </div>
+        ) : error ? (
+          <div className="text-center py-12 bg-red-50 rounded-2xl shadow-sm">
+            <p className="text-red-600">Có lỗi xảy ra khi tải dữ liệu. Vui lòng thử lại sau.</p>
+            <p className="text-sm text-gray-500 mt-2">{error.message}</p>
+          </div>
         ) : filteredSchools.length === 0 ? (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="text-center py-12"
+            className="text-center py-12 bg-white rounded-2xl shadow-sm p-8"
           >
             <GraduationCap className="w-16 h-16 text-gray-400 mx-auto mb-4" />
             <h3 className="font-display text-xl font-bold text-gray-900 mb-2">
               Không tìm thấy trường học
             </h3>
-            <p className="text-gray-600">
-              Thử thay đổi từ khóa tìm kiếm hoặc bộ lọc
+            <p className="text-gray-600 mb-2">
+              {schools.length > 0 
+                ? 'Thử thay đổi từ khóa tìm kiếm hoặc bộ lọc'
+                : 'Hệ thống chưa có dữ liệu trường học'}
             </p>
+            {schools.length > 0 && (
+              <p className="text-sm text-gray-500">
+                Có {schools.length} trường trong hệ thống
+              </p>
+            )}
           </motion.div>
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
