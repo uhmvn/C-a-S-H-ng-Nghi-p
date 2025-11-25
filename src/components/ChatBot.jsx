@@ -7,6 +7,9 @@ import SmartSuggestions from "@/components/SmartSuggestions";
 import useStudentContext from "@/components/hooks/useStudentContext";
 import useChatPersistence from "@/components/hooks/useChatPersistence";
 import { buildAIContext, buildConversationHistory } from "@/components/utils/buildAIContext";
+import SessionHistory from "@/components/chat/SessionHistory";
+import useSessionHistory from "@/components/hooks/useSessionHistory";
+import { buildEnhancedPrompt, shouldUseInternetContext } from "@/components/utils/enhancedAIPrompts";
 
 const useDebounce = (value, delay) => {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -37,6 +40,7 @@ export default function ChatBot() {
   // ✨ NEW: Use custom hooks for comprehensive data & persistence
   const { context: fullContext, isLoading: contextLoading } = useStudentContext(currentUser, isOpen);
   const { saveInsights, updateJourney: saveJourney, saveSession, closeSession } = useChatPersistence(sessionId, journeyId, userProfile);
+  const { sessions, isLoading: sessionsLoading, deleteSession } = useSessionHistory(currentUser?.id, isOpen);
   const [conversationPhase, setConversationPhase] = useState('greeting');
   const [clarityScore, setClarityScore] = useState(0);
   const [lastCelebration, setLastCelebration] = useState(0);
@@ -120,26 +124,63 @@ export default function ChatBot() {
                 setJourneyId(newJourney.id);
               }
 
-              // Session setup
-              const newSession = await base44.entities.AICounselingSession.create({
-                user_id: user.id,
-                student_profile_id: prof.id,
-                session_date: new Date().toISOString(),
-                conversation_history: [],
-                student_context: { started: true, clarity: 0 },
-                counselor_type: 'ai_chat',
-                is_completed: false,
-                tags: ['ai_companion', 'active'],
-                student_interests: [],
-                student_goals: []
-              });
-              console.log('✅ Created session:', newSession.id);
-              setSessionId(newSession.id);
+              // Session setup - check for uncompleted sessions first
+              const existingSessions = await base44.entities.AICounselingSession.filter(
+                { user_id: user.id, is_completed: false },
+                '-session_date',
+                1
+              );
+
+              let activeSession;
+              if (existingSessions && existingSessions.length > 0) {
+                // Continue existing session
+                activeSession = existingSessions[0];
+                console.log('🔄 Continuing session:', activeSession.id);
+                
+                // Load conversation history
+                if (activeSession.conversation_history?.length > 0) {
+                  const loadedMessages = activeSession.conversation_history.map((msg, idx) => ({
+                    id: Date.now() + idx,
+                    text: msg.content,
+                    sender: msg.role === 'user' ? 'user' : 'bot',
+                    timestamp: new Date(msg.timestamp)
+                  }));
+                  setMessages([
+                    { id: 1, text: getGreeting(user, prof), sender: "bot", timestamp: new Date() },
+                    ...loadedMessages
+                  ]);
+                }
+
+                // Restore context
+                if (activeSession.student_context?.clarity) {
+                  setClarityScore(activeSession.student_context.clarity);
+                }
+              } else {
+                // Create new session
+                activeSession = await base44.entities.AICounselingSession.create({
+                  user_id: user.id,
+                  student_profile_id: prof.id,
+                  session_date: new Date().toISOString(),
+                  conversation_history: [],
+                  student_context: { started: true, clarity: 0 },
+                  counselor_type: 'ai_chat',
+                  is_completed: false,
+                  tags: ['ai_companion', 'active'],
+                  student_interests: [],
+                  student_goals: []
+                });
+                console.log('✅ Created new session:', activeSession.id);
+              }
+
+              setSessionId(activeSession.id);
             }
           }
         }
 
-        setMessages([{ id: 1, text: getGreeting(user, prof), sender: "bot", timestamp: new Date() }]);
+        // Only set greeting if not already loaded from session
+        if (messages.length === 0) {
+          setMessages([{ id: 1, text: getGreeting(user, prof), sender: "bot", timestamp: new Date() }]);
+        }
       } catch (err) {
         console.error('Init error:', err);
         setMessages([{
@@ -383,54 +424,15 @@ Trích xuất JSON (CHỈ JSON):
         console.log('⚠️ Insight extraction skipped');
       }
 
-      // ✅ ENHANCED: Use comprehensive context builder
-      const ctx = buildAIContext(fullContext, newInsights, messages);
-      const hist = buildConversationHistory(messages, 10);
+      // ✅ ENHANCED: Use enhanced prompts with real-world examples
+      const prompt = buildEnhancedPrompt(txt, fullContext, newInsights, messages, newClarity);
+      const useInternet = shouldUseInternetContext(txt, newClarity);
 
-      const prompt = `BỐI CẢNH: AI Cố Vấn Đồng Hành - thấu hiểu, động viên, hướng dẫn học sinh.
-
-TRIẾT LÝ: LẮNG NGHE → THẤU HIỂU → DẪN DẮT (không áp đặt)
-
-${ctx}
-
-CUỘC TRUYỆN:
-${hist}
-
-TIN NHẮN MỚI: "${txt}"
-
-PHÂN TÍCH PHASE:
-${newClarity < 40 ? '**DISCOVERY** - Thu thập insights, xây rapport, hỏi sâu' :
-        newClarity < 70 ? '**EXPLORATION** - Kết nối insights với reality, challenge nhẹ' :
-          '**RECOMMENDATION** - Gợi ý cụ thể, action plan'}
-
-QUY TẮC:
-
-**Discovery (<40%):**
-- Hỏi MỞ: "Em kể thêm...", "Điều gì khiến em..."
-- Dig deeper: "Tại sao?", "Em cảm thấy sao?"
-- Validate: "Mình hiểu em đang..."
-- Encourage: "Tuyệt!", "Cứ kể tiếp"
-
-**Exploration (40-70%):**
-- Connect: "Em thích X và giỏi Y, em thấy sao về Z?"
-- Challenge: "Nếu..., em sẽ...?"
-- Options: "Còn A, B, C?"
-
-**Recommendation (>70%):**
-- Analyze: Điểm + Insights
-- Suggest: 3-5 nghề + LÝ DO
-- Plan: Tổ hợp môn + Trường
-
-**NGOÀI CHỦ ĐỀ:**
-→ "Em ơi, mình chỉ tư vấn hướng nghiệp 😊"
-
-**STYLE:** Thân thiện, empathy, 150-400 từ, emoji 💭🎯💡✨
-
-TRẢ LỜI:`;
+      console.log('🌍 Using internet context:', useInternet);
 
       const response = await base44.integrations.Core.InvokeLLM({
         prompt: prompt,
-        add_context_from_internet: false
+        add_context_from_internet: useInternet
       });
 
       const bMsg = { id: Date.now() + 1, text: response, sender: "bot", timestamp: new Date() };
@@ -549,7 +551,7 @@ TRẢ LỜI:`;
 
             {currentUser && userProfile && (
               <div className="bg-gradient-to-r from-indigo-50 to-purple-50 px-4 py-3 border-b flex-shrink-0">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2 flex-1 min-w-0">
                     <User className="w-4 h-4 text-indigo-600" />
                     <div className="flex-1 min-w-0">
@@ -574,6 +576,36 @@ TRẢ LỜI:`;
                     )}
                   </div>
                 </div>
+                
+                {/* Session History Button */}
+                <SessionHistory
+                  sessions={sessions}
+                  currentSessionId={sessionId}
+                  onSelectSession={async (session) => {
+                    console.log('🔄 Loading session:', session.id);
+                    setSessionId(session.id);
+                    
+                    // Load messages
+                    if (session.conversation_history?.length > 0) {
+                      const loadedMessages = session.conversation_history.map((msg, idx) => ({
+                        id: Date.now() + idx,
+                        text: msg.content,
+                        sender: msg.role === 'user' ? 'user' : 'bot',
+                        timestamp: new Date(msg.timestamp)
+                      }));
+                      setMessages([
+                        { id: 1, text: getGreeting(currentUser, userProfile), sender: "bot", timestamp: new Date() },
+                        ...loadedMessages
+                      ]);
+                    }
+                    
+                    // Restore clarity
+                    if (session.student_context?.clarity) {
+                      setClarityScore(session.student_context.clarity);
+                    }
+                  }}
+                  onDeleteSession={deleteSession}
+                />
               </div>
             )}
 
