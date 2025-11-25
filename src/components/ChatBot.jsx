@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Send, Sparkles, User, Brain, Lightbulb, TrendingUp, Target, Heart, PartyPopper, Zap, Maximize2, Minimize2 } from "lucide-react";
@@ -854,7 +853,21 @@ TRẢ LỜI:`;
               academicScores={context?.scores || []}
               hasTests={context?.tests?.length > 0}
               messageCount={messages.length}
-              onSelect={setInputText}
+              onSelect={(prompt) => {
+                // ✅ NEW: Auto-send AI response instead of setting user input
+                setInputText('');
+                setIsTyping(true);
+                
+                // Add AI's question/prompt as a bot message
+                const botPromptMsg = {
+                  id: Date.now(),
+                  text: prompt,
+                  sender: "bot",
+                  timestamp: new Date()
+                };
+                setMessages(prev => [...prev, botPromptMsg]);
+                setIsTyping(false);
+              }}
             />
 
             <div className="p-4 border-t-2 border-indigo-100 bg-white rounded-b-3xl flex-shrink-0">
