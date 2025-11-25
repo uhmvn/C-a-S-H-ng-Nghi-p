@@ -39,12 +39,6 @@ export default function ChatBot() {
   const [sessionId, setSessionId] = useState(null);
   const [journeyId, setJourneyId] = useState(null);
   const [studentJourney, setStudentJourney] = useState(null);
-  
-  // ✨ NEW: Use custom hooks for comprehensive data & persistence
-  const { context: fullContext, isLoading: contextLoading } = useStudentContext(currentUser, isOpen);
-  const { saveInsights, updateJourney: saveJourney, saveSession, closeSession } = useChatPersistence(sessionId, journeyId, userProfile);
-  const { sessions, isLoading: sessionsLoading, deleteSession } = useSessionHistory(currentUser?.id, isOpen);
-  const { progressData, alerts, isLoading: progressLoading } = useProgressTracking(currentUser?.id, userProfile, extractedInsights, isOpen);
   const [conversationPhase, setConversationPhase] = useState('greeting');
   const [clarityScore, setClarityScore] = useState(0);
   const [lastCelebration, setLastCelebration] = useState(0);
@@ -56,6 +50,12 @@ export default function ChatBot() {
     personality_traits: [],
     values: []
   });
+  
+  // ✨ NEW: Use custom hooks for comprehensive data & persistence
+  const { context: fullContext, isLoading: contextLoading } = useStudentContext(currentUser, isOpen);
+  const { saveInsights, updateJourney: saveJourney, saveSession, closeSession } = useChatPersistence(sessionId, journeyId, userProfile);
+  const { sessions, isLoading: sessionsLoading, deleteSession } = useSessionHistory(currentUser?.id, isOpen);
+  const { progressData, alerts, isLoading: progressLoading } = useProgressTracking(currentUser?.id, userProfile, extractedInsights, isOpen);
   const messagesEndRef = useRef(null);
 
   const debouncedInsights = useDebounce(extractedInsights, 2000);
