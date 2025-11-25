@@ -41,9 +41,18 @@ export default function Schools() {
   ];
 
   // Fetch schools from database
-  const { data: schools = [], isLoading } = useQuery({
+  const { data: schools = [], isLoading, error } = useQuery({
     queryKey: ['schools'],
-    queryFn: () => base44.entities.School.list(),
+    queryFn: async () => {
+      try {
+        const result = await base44.entities.School.list();
+        console.log('✅ Schools loaded:', result?.length || 0, result);
+        return result || [];
+      } catch (err) {
+        console.error('❌ Error loading schools:', err);
+        return [];
+      }
+    },
     initialData: [],
     staleTime: 30 * 60 * 1000,
     cacheTime: 60 * 60 * 1000
