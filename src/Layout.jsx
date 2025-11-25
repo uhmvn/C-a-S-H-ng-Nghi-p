@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -9,6 +8,8 @@ import ReviewWidget from "@/components/ReviewWidget";
 import SeoSchema from "@/components/SeoSchema";
 import LoadingScreen from "@/components/LoadingScreen";
 import BackToTop from "@/components/BackToTop";
+import PWAManifest from "@/components/pwa/PWAManifest";
+import PWAInstallPrompt from "@/components/pwa/PWAInstallPrompt";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 
@@ -243,8 +244,11 @@ export default function Layout({ children, currentPageName }) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 font-sans text-[length:var(--font-body)] leading-[1.618]">
-      <style>{`
+    <>
+      <PWAManifest />
+      <PWAInstallPrompt />
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 font-sans text-[length:var(--font-body)] leading-[1.618]">
+        <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Inter:wght@300;400;500;600;700&display=swap');
 
         :root {
@@ -787,6 +791,7 @@ export default function Layout({ children, currentPageName }) {
         onClose={handleCloseBookingModal}
         initialService={initialService} 
       />
-    </div>
-  );
+      </div>
+      </>
+      );
 }
