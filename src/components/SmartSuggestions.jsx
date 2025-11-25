@@ -8,6 +8,8 @@ export default function SmartSuggestions({
   academicScores = [], 
   hasTests = false,
   messageCount = 0,
+  progressData = null,
+  alerts = [],
   onSelect 
 }) {
   const generateSuggestions = () => {
@@ -16,6 +18,35 @@ export default function SmartSuggestions({
     const hasGoals = insights.goals?.length > 0;
     const hasConcerns = insights.concerns?.length > 0;
     const hasScores = academicScores.length > 0;
+
+    // ✨ NEW: Add progress-based suggestions
+    if (progressData) {
+      const highAlerts = alerts.filter(a => a.priority === 'high');
+      if (highAlerts.length > 0 && clarityScore < 70) {
+        suggestions.push({
+          icon: '⚠️',
+          label: 'Cảnh báo',
+          prompt: `Mình thấy có ${highAlerts.length} môn cần chú ý. Em muốn tư vấn không?`,
+          color: 'from-red-500 to-orange-600',
+          special: true
+        });
+      }
+
+      if (progressData.decliningCount > 0) {
+        const declining = Object.entries(progressData.trends || {})
+          .filter(([_, data]) => data.trend === 'down')
+          .map(([subject]) => subject);
+        
+        if (declining.length > 0) {
+          suggestions.push({
+            icon: '📉',
+            label: 'Cải thiện',
+            prompt: `Điểm ${declining[0]} đang giảm. Làm sao để học tốt hơn?`,
+            color: 'from-orange-500 to-red-600'
+          });
+        }
+      }
+    }
     
     // PHASE 1: DISCOVERY (<40%)
     if (clarityScore < 40) {

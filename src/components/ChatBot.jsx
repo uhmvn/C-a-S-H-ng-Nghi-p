@@ -10,6 +10,9 @@ import { buildAIContext, buildConversationHistory } from "@/components/utils/bui
 import SessionHistory from "@/components/chat/SessionHistory";
 import useSessionHistory from "@/components/hooks/useSessionHistory";
 import { buildEnhancedPrompt, shouldUseInternetContext } from "@/components/utils/enhancedAIPrompts";
+import useProgressTracking from "@/components/hooks/useProgressTracking";
+import ProgressAlert from "@/components/chat/ProgressAlert";
+import { buildProgressContext, generateProactiveSuggestions } from "@/components/utils/smartAnalysis";
 
 const useDebounce = (value, delay) => {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -41,6 +44,7 @@ export default function ChatBot() {
   const { context: fullContext, isLoading: contextLoading } = useStudentContext(currentUser, isOpen);
   const { saveInsights, updateJourney: saveJourney, saveSession, closeSession } = useChatPersistence(sessionId, journeyId, userProfile);
   const { sessions, isLoading: sessionsLoading, deleteSession } = useSessionHistory(currentUser?.id, isOpen);
+  const { progressData, alerts, isLoading: progressLoading } = useProgressTracking(currentUser?.id, userProfile, extractedInsights, isOpen);
   const [conversationPhase, setConversationPhase] = useState('greeting');
   const [clarityScore, setClarityScore] = useState(0);
   const [lastCelebration, setLastCelebration] = useState(0);
@@ -424,10 +428,16 @@ Trích xuất JSON (CHỈ JSON):
         console.log('⚠️ Insight extraction skipped');
       }
 
-      // ✅ ENHANCED: Use enhanced prompts with real-world examples
-      const prompt = buildEnhancedPrompt(txt, fullContext, newInsights, messages, newClarity);
-      const useInternet = shouldUseInternetContext(txt, newClarity);
+      // ✅ ENHANCED: Use enhanced prompts with progress analysis
+      let prompt = buildEnhancedPrompt(txt, fullContext, newInsights, messages, newClarity);
+      
+      // Add progress context
+      if (progressData) {
+        const progressCtx = buildProgressContext(progressData, alerts, newInsights);
+        prompt = prompt.replace('TRẢ LỜI:', `${progressCtx}\n\nTRẢ LỜI:`);
+      }
 
+      const useInternet = shouldUseInternetContext(txt, newClarity);
       console.log('🌍 Using internet context:', useInternet);
 
       const response = await base44.integrations.Core.InvokeLLM({
@@ -670,6 +680,47 @@ Trích xuất JSON (CHỈ JSON):
               <div ref={messagesEndRef} />
             </div>
 
+            {/* Progress Alert */}
+            {alerts.length > 0 && userProfile?.role === 'student' && (
+              <ProgressAlert
+                alerts={alerts}
+                onAskAbout={async (prompt) => {
+                  // Auto-send user message + trigger AI
+                  const userMsg = { 
+                    id: Date.now(), 
+                    text: prompt, 
+                    sender: "user", 
+                    timestamp: new Date() 
+                  };
+                  setMessages(prev => [...prev, userMsg]);
+                  setIsTyping(true);
+
+                  try {
+                    const aiPrompt = buildEnhancedPrompt(prompt, fullContext, extractedInsights, messages, clarityScore);
+                    const progressCtx = progressData ? buildProgressContext(progressData, alerts, extractedInsights) : '';
+                    const finalPrompt = aiPrompt.replace('TRẢ LỜI:', `${progressCtx}\n\nTRẢ LỜI:`);
+
+                    const response = await base44.integrations.Core.InvokeLLM({
+                      prompt: finalPrompt,
+                      add_context_from_internet: false
+                    });
+
+                    const botMsg = { 
+                      id: Date.now() + 1, 
+                      text: response, 
+                      sender: "bot", 
+                      timestamp: new Date() 
+                    };
+                    setMessages(prev => [...prev, botMsg]);
+                  } catch (err) {
+                    console.error('❌ Alert prompt error:', err);
+                  } finally {
+                    setIsTyping(false);
+                  }
+                }}
+              />
+            )}
+
             {/* Smart Suggestions */}
             <SmartSuggestions
               clarityScore={clarityScore}
@@ -677,19 +728,54 @@ Trích xuất JSON (CHỈ JSON):
               academicScores={fullContext?.scores?.raw || []}
               hasTests={fullContext?.stats?.hasTests || false}
               messageCount={messages.length}
-              onSelect={(prompt) => {
-                // ✅ Auto-send AI response instead of setting user input
-                setInputText('');
-                setIsTyping(true);
-                
-                const botPromptMsg = {
-                  id: Date.now(),
-                  text: prompt,
-                  sender: "bot",
-                  timestamp: new Date()
+              progressData={progressData}
+              alerts={alerts}
+              onSelect={async (prompt) => {
+                // ✅ FIXED: Auto-send user message + trigger AI response
+                const userMsg = { 
+                  id: Date.now(), 
+                  text: prompt, 
+                  sender: "user", 
+                  timestamp: new Date() 
                 };
-                setMessages(prev => [...prev, botPromptMsg]);
-                setIsTyping(false);
+                setMessages(prev => [...prev, userMsg]);
+                setIsTyping(true);
+
+                try {
+                  // Build AI prompt
+                  const aiPrompt = buildEnhancedPrompt(prompt, fullContext, extractedInsights, [...messages, userMsg], clarityScore);
+                  const progressCtx = progressData ? buildProgressContext(progressData, alerts, extractedInsights) : '';
+                  const finalPrompt = aiPrompt.replace('TRẢ LỜI:', `${progressCtx}\n\nTRẢ LỜI:`);
+
+                  const response = await base44.integrations.Core.InvokeLLM({
+                    prompt: finalPrompt,
+                    add_context_from_internet: shouldUseInternetContext(prompt, clarityScore)
+                  });
+
+                  const botMsg = { 
+                    id: Date.now() + 1, 
+                    text: response, 
+                    sender: "bot", 
+                    timestamp: new Date() 
+                  };
+                  setMessages(prev => [...prev, botMsg]);
+
+                  // Save session
+                  const newMessages = [...messages, userMsg, botMsg];
+                  if (newMessages.length % 3 === 0) {
+                    await saveSession(newMessages, extractedInsights, clarityScore, conversationPhase);
+                  }
+                } catch (err) {
+                  console.error('❌ Suggestion prompt error:', err);
+                  setMessages(prev => [...prev, {
+                    id: Date.now() + 1,
+                    text: "Xin lỗi em, có lỗi xảy ra 🔧",
+                    sender: "bot",
+                    timestamp: new Date()
+                  }]);
+                } finally {
+                  setIsTyping(false);
+                }
               }}
             />
 
