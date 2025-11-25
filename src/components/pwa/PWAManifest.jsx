@@ -97,10 +97,14 @@ export default function PWAManifest() {
 
     console.log('✅ PWA Manifest injected');
 
-    // Register service worker
+    // Register service worker via backend function
     if ('serviceWorker' in navigator) {
+      const swUrl = window.location.origin.includes('localhost')
+        ? 'http://localhost:54321/functions/v1/serviceWorker'
+        : `${window.location.origin}/api/functions/serviceWorker`;
+      
       navigator.serviceWorker
-        .register('/service-worker.js')
+        .register(swUrl, { scope: '/' })
         .then(registration => {
           console.log('✅ Service Worker registered:', registration.scope);
         })
