@@ -44,18 +44,26 @@ export default function Schools() {
   const { data: rawSchools = [], isLoading, error } = useQuery({
     queryKey: ['schools'],
     queryFn: async () => {
+      console.log('🔄 Fetching schools...');
       try {
         const result = await base44.entities.School.list();
-        console.log('✅ Schools raw data:', result?.length || 0, result);
+        console.log('✅ Schools API response:', { 
+          type: typeof result, 
+          isArray: Array.isArray(result),
+          length: result?.length || 0, 
+          data: result 
+        });
         return result || [];
       } catch (err) {
-        console.error('❌ Error loading schools:', err);
+        console.error('❌ Error loading schools:', err, err.stack);
         return [];
       }
     },
     initialData: [],
     staleTime: 30 * 60 * 1000,
-    cacheTime: 60 * 60 * 1000
+    cacheTime: 60 * 60 * 1000,
+    refetchOnMount: true,
+    refetchOnWindowFocus: false
   });
 
   // Map schools to flat structure

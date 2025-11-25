@@ -55,18 +55,26 @@ export default function Services() {
   const { data: rawServices = [], isLoading, error } = useQuery({
     queryKey: ['services'],
     queryFn: async () => {
+      console.log('🔄 Fetching services...');
       try {
         const result = await base44.entities.Service.list('order');
-        console.log('✅ Services raw data:', result?.length || 0, result);
+        console.log('✅ Services API response:', { 
+          type: typeof result, 
+          isArray: Array.isArray(result),
+          length: result?.length || 0, 
+          data: result 
+        });
         return result || [];
       } catch (err) {
-        console.error('❌ Error loading services:', err);
+        console.error('❌ Error loading services:', err, err.stack);
         return [];
       }
     },
     initialData: [],
     staleTime: 10 * 60 * 1000,
-    cacheTime: 30 * 60 * 1000
+    cacheTime: 30 * 60 * 1000,
+    refetchOnMount: true,
+    refetchOnWindowFocus: false
   });
 
   // Map services to flat structure
