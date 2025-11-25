@@ -52,9 +52,18 @@ export default function Services() {
   const navigate = useNavigate();
   const [activeFilter, setActiveFilter] = useState("all");
 
-  const { data: services = [], isLoading } = useQuery({
+  const { data: services = [], isLoading, error } = useQuery({
     queryKey: ['services'],
-    queryFn: () => base44.entities.Service.list('order'),
+    queryFn: async () => {
+      try {
+        const result = await base44.entities.Service.list('order');
+        console.log('✅ Services loaded:', result?.length || 0, result);
+        return result || [];
+      } catch (err) {
+        console.error('❌ Error loading services:', err);
+        return [];
+      }
+    },
     initialData: [],
     staleTime: 10 * 60 * 1000,
     cacheTime: 30 * 60 * 1000
@@ -70,10 +79,23 @@ export default function Services() {
   }, [urlParams]);
 
   const filteredServices = useMemo(() => {
+    console.log('🔍 Filtering services:', {
+      total: services.length,
+      activeFilter,
+      servicesData: services
+    });
+    
+    // Filter active services (is_active is true or undefined)
     const activeServices = services.filter(s => s.is_active !== false);
-    return activeFilter === "all" 
+    console.log('✅ Active services:', activeServices.length);
+    
+    // Filter by category
+    const filtered = activeFilter === "all" 
       ? activeServices 
       : activeServices.filter(service => service.category === activeFilter);
+    
+    console.log('📊 Filtered result:', filtered.length, filtered);
+    return filtered;
   }, [activeFilter, services]);
 
   // ✅ REVERTED: Always go to ServiceDetail page
@@ -139,9 +161,19 @@ export default function Services() {
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
             <p className="text-gray-600 mt-4">Đang tải dịch vụ...</p>
           </div>
+        ) : error ? (
+          <div className="text-center py-12 bg-red-50 rounded-2xl shadow-sm">
+            <p className="text-red-600">Có lỗi xảy ra khi tải dịch vụ. Vui lòng thử lại sau.</p>
+            <p className="text-sm text-gray-500 mt-2">{error.message}</p>
+          </div>
         ) : filteredServices.length === 0 ? (
           <div className="text-center py-12 bg-white rounded-2xl shadow-sm">
-            <p className="text-gray-600">Chưa có dịch vụ nào trong danh mục này</p>
+            <p className="text-gray-600 mb-2">Chưa có dịch vụ nào trong danh mục này</p>
+            <p className="text-sm text-gray-500">
+              {services.length > 0 
+                ? `Có ${services.length} dịch vụ trong hệ thống, nhưng không có dịch vụ nào thuộc danh mục "${categories.find(c => c.key === activeFilter)?.name}"`
+                : 'Hệ thống chưa có dịch vụ nào'}
+            </p>
           </div>
         ) : (
           <>
