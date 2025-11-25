@@ -51,13 +51,10 @@ export default function Schools() {
     cacheTime: 60 * 60 * 1000
   });
 
-  // Map schools to flat structure
+  // Schools are returned as flat structure from SDK
   const schools = useMemo(() => {
     if (!rawSchools || !Array.isArray(rawSchools)) return [];
-    return rawSchools.map(school => ({
-      id: school.id,
-      ...school.data
-    }));
+    return rawSchools;
   }, [rawSchools]);
 
   const filteredSchools = useMemo(() => {

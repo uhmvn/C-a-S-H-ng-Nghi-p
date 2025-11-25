@@ -62,13 +62,10 @@ export default function Services() {
     cacheTime: 30 * 60 * 1000
   });
 
-  // Map services to flat structure
+  // Services are returned as flat structure from SDK
   const services = useMemo(() => {
     if (!rawServices || !Array.isArray(rawServices)) return [];
-    return rawServices.map(service => ({
-      id: service.id,
-      ...service.data
-    }));
+    return rawServices;
   }, [rawServices]);
 
   const urlParams = useMemo(() => new URLSearchParams(location.search), [location.search]);

@@ -21,8 +21,8 @@ const OptimizedServiceCard = React.memo(({ service, index, ctaConfig, onClick })
     >
       <div className="relative h-64 overflow-hidden">
         <LazyImage
-          src={service.image_url}
-          alt={service.alt_text || service.name}
+          src={service.image_url || "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=800&q=90"}
+          alt={service.alt_text || service.name || "Service image"}
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
