@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { Compass, Phone, Mail, Linkedin, Facebook, MapPin, X, Menu, Users, LogOut, Settings, LayoutDashboard, User as UserIcon, ChevronDown } from "lucide-react";
-import React from "react";
 const ChatBot = React.lazy(() => import("@/components/ChatBot"));
 const BookingModal = React.lazy(() => import("@/components/BookingModal"));
 import ReviewWidget from "@/components/ReviewWidget";
