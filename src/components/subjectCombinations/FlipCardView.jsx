@@ -4,6 +4,7 @@ import { BookOpen, Briefcase, GraduationCap } from 'lucide-react';
 
 export default function FlipCardView({ combinations, getComboDetails }) {
   const [flippedCards, setFlippedCards] = useState(new Set());
+  const [hoveredCard, setHoveredCard] = useState(null);
 
   const toggleFlip = (code) => {
     const newFlipped = new Set(flippedCards);
@@ -15,11 +16,19 @@ export default function FlipCardView({ combinations, getComboDetails }) {
     setFlippedCards(newFlipped);
   };
 
+  const isFlipped = (code) => {
+    // Mobile: use click state
+    if (flippedCards.has(code)) return true;
+    // Desktop: use hover state
+    if (hoveredCard === code) return true;
+    return false;
+  };
+
   return (
     <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
       {combinations.map((combo, index) => {
         const details = getComboDetails(combo.code);
-        const isFlipped = flippedCards.has(combo.code);
+        const shouldFlip = isFlipped(combo.code);
         
         return (
           <motion.div
@@ -29,10 +38,12 @@ export default function FlipCardView({ combinations, getComboDetails }) {
             transition={{ duration: 0.4, delay: index * 0.05 }}
             className="h-[280px] perspective-1000"
             onClick={() => toggleFlip(combo.code)}
+            onMouseEnter={() => setHoveredCard(combo.code)}
+            onMouseLeave={() => setHoveredCard(null)}
           >
             <motion.div
               className="relative w-full h-full cursor-pointer"
-              animate={{ rotateY: isFlipped ? 180 : 0 }}
+              animate={{ rotateY: shouldFlip ? 180 : 0 }}
               transition={{ duration: 0.6, type: "spring", stiffness: 80 }}
               style={{ transformStyle: "preserve-3d" }}
             >
@@ -62,7 +73,8 @@ export default function FlipCardView({ combinations, getComboDetails }) {
                 </div>
 
                 <div className="text-center">
-                  <p className="text-white/60 text-xs">Nhấn để xem chi tiết ↻</p>
+                  <p className="text-white/60 text-xs hidden md:block">Di chuột để xem chi tiết ↻</p>
+                  <p className="text-white/60 text-xs md:hidden">Nhấn để xem chi tiết ↻</p>
                 </div>
               </div>
 
@@ -110,7 +122,8 @@ export default function FlipCardView({ combinations, getComboDetails }) {
                 </div>
 
                 <div className="text-center">
-                  <p className="text-gray-400 text-xs">Nhấn để quay lại ↻</p>
+                  <p className="text-gray-400 text-xs hidden md:block">Di chuột ra để quay lại ↻</p>
+                  <p className="text-gray-400 text-xs md:hidden">Nhấn để quay lại ↻</p>
                 </div>
               </div>
             </motion.div>
