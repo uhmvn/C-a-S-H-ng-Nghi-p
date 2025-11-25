@@ -41,33 +41,19 @@ export default function Schools() {
   ];
 
   // Fetch schools from database
-  const { data: rawSchools = [], isLoading, error } = useQuery({
+  const { data: rawSchools, isLoading, error } = useQuery({
     queryKey: ['schools'],
     queryFn: async () => {
-      console.log('🔄 Fetching schools...');
-      try {
-        const result = await base44.entities.School.list();
-        console.log('✅ Schools API response:', { 
-          type: typeof result, 
-          isArray: Array.isArray(result),
-          length: result?.length || 0, 
-          data: result 
-        });
-        return result || [];
-      } catch (err) {
-        console.error('❌ Error loading schools:', err, err.stack);
-        return [];
-      }
+      const result = await base44.entities.School.list();
+      return result || [];
     },
-    initialData: [],
     staleTime: 30 * 60 * 1000,
-    cacheTime: 60 * 60 * 1000,
-    refetchOnMount: true,
-    refetchOnWindowFocus: false
+    cacheTime: 60 * 60 * 1000
   });
 
   // Map schools to flat structure
   const schools = useMemo(() => {
+    if (!rawSchools || !Array.isArray(rawSchools)) return [];
     return rawSchools.map(school => ({
       id: school.id,
       ...school.data
@@ -75,15 +61,7 @@ export default function Schools() {
   }, [rawSchools]);
 
   const filteredSchools = useMemo(() => {
-    console.log('🔍 Filtering schools:', {
-      total: schools.length,
-      searchTerm,
-      selectedType,
-      selectedProvince,
-      schoolsData: schools
-    });
-    
-    const filtered = schools.filter(school => {
+    return schools.filter(school => {
       const matchesSearch = !searchTerm || 
         school.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         school.majors?.some(major => major.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -94,9 +72,6 @@ export default function Schools() {
       
       return matchesSearch && matchesType && matchesProvince;
     });
-    
-    console.log('📊 Filtered schools:', filtered.length, filtered);
-    return filtered;
   }, [schools, searchTerm, selectedType, selectedProvince]);
 
   const handleSchoolClick = (school) => {

@@ -52,33 +52,19 @@ export default function Services() {
   const navigate = useNavigate();
   const [activeFilter, setActiveFilter] = useState("all");
 
-  const { data: rawServices = [], isLoading, error } = useQuery({
+  const { data: rawServices, isLoading, error } = useQuery({
     queryKey: ['services'],
     queryFn: async () => {
-      console.log('🔄 Fetching services...');
-      try {
-        const result = await base44.entities.Service.list('order');
-        console.log('✅ Services API response:', { 
-          type: typeof result, 
-          isArray: Array.isArray(result),
-          length: result?.length || 0, 
-          data: result 
-        });
-        return result || [];
-      } catch (err) {
-        console.error('❌ Error loading services:', err, err.stack);
-        return [];
-      }
+      const result = await base44.entities.Service.list('order');
+      return result || [];
     },
-    initialData: [],
     staleTime: 10 * 60 * 1000,
-    cacheTime: 30 * 60 * 1000,
-    refetchOnMount: true,
-    refetchOnWindowFocus: false
+    cacheTime: 30 * 60 * 1000
   });
 
   // Map services to flat structure
   const services = useMemo(() => {
+    if (!rawServices || !Array.isArray(rawServices)) return [];
     return rawServices.map(service => ({
       id: service.id,
       ...service.data
@@ -95,23 +81,10 @@ export default function Services() {
   }, [urlParams]);
 
   const filteredServices = useMemo(() => {
-    console.log('🔍 Filtering services:', {
-      total: services.length,
-      activeFilter,
-      servicesData: services
-    });
-    
-    // Filter active services (is_active is true or undefined)
     const activeServices = services.filter(s => s.is_active !== false);
-    console.log('✅ Active services:', activeServices.length);
-    
-    // Filter by category
-    const filtered = activeFilter === "all" 
+    return activeFilter === "all" 
       ? activeServices 
       : activeServices.filter(service => service.category === activeFilter);
-    
-    console.log('📊 Filtered result:', filtered.length, filtered);
-    return filtered;
   }, [activeFilter, services]);
 
   // ✅ REVERTED: Always go to ServiceDetail page
