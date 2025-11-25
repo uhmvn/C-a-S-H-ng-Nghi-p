@@ -4,6 +4,9 @@ import { X, Send, Sparkles, User, Brain, Lightbulb, TrendingUp, Target, Heart, P
 import { base44 } from "@/api/base44Client";
 import MessageFormatter from "@/components/MessageFormatter";
 import SmartSuggestions from "@/components/SmartSuggestions";
+import useStudentContext from "@/components/hooks/useStudentContext";
+import useChatPersistence from "@/components/hooks/useChatPersistence";
+import { buildAIContext, buildConversationHistory } from "@/components/utils/buildAIContext";
 
 const useDebounce = (value, delay) => {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -29,8 +32,11 @@ export default function ChatBot() {
   const [userProfile, setUserProfile] = useState(null);
   const [sessionId, setSessionId] = useState(null);
   const [journeyId, setJourneyId] = useState(null);
-  const [context, setContext] = useState(null);
   const [studentJourney, setStudentJourney] = useState(null);
+  
+  // ✨ NEW: Use custom hooks for comprehensive data & persistence
+  const { context: fullContext, isLoading: contextLoading } = useStudentContext(currentUser, isOpen);
+  const { saveInsights, updateJourney: saveJourney, saveSession, closeSession } = useChatPersistence(sessionId, journeyId, userProfile);
   const [conversationPhase, setConversationPhase] = useState('greeting');
   const [clarityScore, setClarityScore] = useState(0);
   const [lastCelebration, setLastCelebration] = useState(0);
@@ -50,12 +56,13 @@ export default function ChatBot() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // ✅ ENHANCED: Use new persistence hook
   useEffect(() => {
     if (journeyId && messages.length > 1 && (debouncedInsights.interests.length > 0 || debouncedInsights.goals.length > 0)) {
       console.log('🔄 Auto-saving insights...', debouncedInsights);
-      quickSaveInsights(debouncedInsights);
+      saveInsights(debouncedInsights);
     }
-  }, [debouncedInsights, journeyId, messages.length]);
+  }, [debouncedInsights, journeyId, messages.length, saveInsights]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -73,10 +80,7 @@ export default function ChatBot() {
             setUserProfile(prof);
 
             if (prof.role === 'student') {
-              const scores = await base44.entities.AcademicScore.filter({ student_id: prof.id });
-              const tests = await base44.entities.TestResult.filter({ user_id: user.id });
-              const sessions = await base44.entities.AICounselingSession.filter({ user_id: user.id }, '-session_date', 10);
-
+              // Journey setup
               const journeys = await base44.entities.StudentJourney.filter({ user_id: user.id });
               let journey = null;
 
@@ -116,14 +120,7 @@ export default function ChatBot() {
                 setJourneyId(newJourney.id);
               }
 
-              setContext({
-                scores: scores || [],
-                tests: tests || [],
-                previousSessions: sessions || [],
-                journey: journey,
-                profile: prof
-              });
-
+              // Session setup
               const newSession = await base44.entities.AICounselingSession.create({
                 user_id: user.id,
                 student_profile_id: prof.id,
@@ -162,9 +159,12 @@ export default function ChatBot() {
     const n = u.full_name?.split(' ').slice(-1)[0] || 'em';
 
     if (p.role === 'student') {
-      if (context?.journey?.conversation_count > 0) {
-        const lastInterest = context.journey.key_insights?.interests?.[0];
-        const clarity = context.journey.current_clarity_score || 0;
+      // ✅ ENHANCED: Use fullContext from hook
+      const journey = fullContext?.journey;
+      
+      if (journey?.conversation_count > 0) {
+        const lastInterest = journey.key_insights?.interests?.[0];
+        const clarity = journey.current_clarity_score || 0;
 
         if (clarity >= 70) {
           return `Chào lại ${n}! 🌟\n\nMình thấy em đã rõ ràng hơn rất nhiều (${clarity}%)! Tuyệt vời!\n\nHôm nay em muốn trao đổi thêm về điều gì? 😊`;
@@ -179,185 +179,11 @@ export default function ChatBot() {
     return `Chào ${n}! 👋 Mình là AI Cố Vấn Đồng Hành.`;
   };
 
-  const quickSaveInsights = useCallback(async (insights) => {
-    if (!journeyId || !insights) return;
-
-    try {
-      const totalInsights = Object.values(insights).reduce((sum, arr) => sum + (arr?.length || 0), 0);
-      console.log('💾 Saving insights to journey:', journeyId, 'Total:', totalInsights);
-
-      await base44.entities.StudentJourney.update(journeyId, {
-        key_insights: insights,
-        total_insights_collected: totalInsights,
-        last_updated: new Date().toISOString()
-      });
-      console.log('✅ Quick saved insights successfully');
-    } catch (err) {
-      console.error('❌ Quick save error:', err);
-    }
-  }, [journeyId]);
-
-  const updateJourney = async (newInsights, conversationMsgs, newClarity, emotionalState) => {
-    if (!journeyId || !userProfile) return;
-
-    try {
-      console.log('📝 Full journey update...', journeyId);
-      const journey = studentJourney || {};
-
-      const oldInterests = journey.key_insights?.interests || [];
-      const oldGoals = journey.key_insights?.goals || [];
-      const newInterestsList = newInsights.interests || [];
-      const newGoalsList = newInsights.goals || [];
-
-      const interestChanges = newInterestsList.filter(i => !oldInterests.includes(i));
-      const goalChanges = newGoalsList.filter(g => !oldGoals.includes(g));
-
-      let newMilestones = journey.milestones || [];
-      let newInterestEvolution = journey.interest_evolution || [];
-      let newGoalEvolution = journey.goal_evolution || [];
-      let newObservations = journey.ai_observations || [];
-
-      if (interestChanges.length > 0 || goalChanges.length > 0) {
-        newMilestones.push({
-          date: new Date().toISOString(),
-          type: 'insight_discovery',
-          description: `Khám phá mới: ${[...interestChanges, ...goalChanges].slice(0, 2).join(', ')}`,
-          emotional_state: emotionalState,
-          clarity_score: newClarity
-        });
-        console.log('✅ Added milestone:', newMilestones[newMilestones.length - 1]);
-      }
-
-      if (interestChanges.length > 0) {
-        newInterestEvolution.push({
-          date: new Date().toISOString(),
-          interests: newInterestsList,
-          confidence: newClarity
-        });
-      }
-
-      if (goalChanges.length > 0) {
-        goalChanges.forEach(goal => {
-          newGoalEvolution.push({
-            date: new Date().toISOString(),
-            goal: goal,
-            reason: 'Discovered through conversation',
-            confidence: newClarity
-          });
-        });
-      }
-
-      const oldClarity = journey.current_clarity_score || 0;
-      if (oldClarity < 25 && newClarity >= 25) {
-        newMilestones.push({
-          date: new Date().toISOString(),
-          type: 'celebration',
-          description: '🎉 Đạt 25% - Bắt đầu hiểu bản thân!',
-          emotional_state: emotionalState,
-          clarity_score: newClarity
-        });
-      }
-      if (oldClarity < 50 && newClarity >= 50) {
-        newMilestones.push({
-          date: new Date().toISOString(),
-          type: 'celebration',
-          description: '🎊 Đạt 50% - Rõ ràng hơn rồi!',
-          emotional_state: emotionalState,
-          clarity_score: newClarity
-        });
-      }
-      if (oldClarity < 75 && newClarity >= 75) {
-        newMilestones.push({
-          date: new Date().toISOString(),
-          type: 'celebration',
-          description: '🏆 Đạt 75% - Đã xác định được hướng đi!',
-          emotional_state: emotionalState,
-          clarity_score: newClarity
-        });
-      }
-
-      newObservations.push({
-        date: new Date().toISOString(),
-        observation: `Conv ${conversationMsgs.length} msgs. Clarity: ${oldClarity}% -> ${newClarity}%. New: ${interestChanges.length + goalChanges.length}`,
-        significance: newClarity > 60 ? 'high' : newClarity > 30 ? 'medium' : 'low'
-      });
-
-      const updateData = {
-        current_clarity_score: newClarity,
-        current_emotional_state: emotionalState,
-        conversation_count: (journey.conversation_count || 0) + 1,
-        total_insights_collected: Object.values(newInsights).reduce((sum, arr) => sum + (arr?.length || 0), 0),
-        milestones: newMilestones,
-        interest_evolution: newInterestEvolution,
-        goal_evolution: newGoalEvolution,
-        key_insights: newInsights,
-        ai_observations: newObservations.slice(-20),
-        last_updated: new Date().toISOString()
-      };
-
-      console.log('💾 Updating journey with data:', updateData);
-      await base44.entities.StudentJourney.update(journeyId, updateData);
-
-      setStudentJourney({
-        ...journey,
-        ...updateData
-      });
-
-      console.log('✅ Journey fully updated');
-    } catch (err) {
-      console.error('❌ Journey update error:', err);
-    }
-  };
-
-  const saveSessionIncremental = useCallback(async (msgs, insights = null) => {
-    if (!sessionId || !currentUser || !userProfile) return;
-
-    try {
-      const currentInsights = insights || extractedInsights;
-
-      const updateData = {
-        conversation_history: msgs.slice(-50).map(m => ({
-          role: m.sender,
-          content: m.text,
-          timestamp: m.timestamp.toISOString()
-        })),
-        student_interests: currentInsights.interests || [],
-        student_goals: currentInsights.goals || [],
-        student_context: {
-          clarity: clarityScore,
-          phase: conversationPhase,
-          insights_count: Object.values(currentInsights).reduce((sum, arr) => sum + (arr?.length || 0), 0)
-        },
-        counseling_summary: `AI Companion - ${msgs.length} msgs - Clarity: ${clarityScore}% - Phase: ${conversationPhase}`,
-        tags: ['ai_companion', conversationPhase, userProfile.role || 'student']
-      };
-
-      console.log('💾 Saving session:', sessionId, updateData);
-      await base44.entities.AICounselingSession.update(sessionId, updateData);
-
-      console.log('✅ Session saved');
-    } catch (err) {
-      console.error('❌ Session save error:', err);
-    }
-  }, [sessionId, currentUser, userProfile, extractedInsights, clarityScore, conversationPhase]);
-
+  // ✅ REMOVED: Old functions replaced by hooks
+  
   const handleClose = async () => {
     if (sessionId && messages.length > 1) {
-      try {
-        console.log('🔒 Closing session:', sessionId);
-        await base44.entities.AICounselingSession.update(sessionId, {
-          is_completed: true,
-          completion_date: new Date().toISOString(),
-          conversation_history: messages.map(m => ({
-            role: m.sender,
-            content: m.text,
-            timestamp: m.timestamp.toISOString()
-          }))
-        });
-        console.log('✅ Session closed');
-      } catch (err) {
-        console.error('❌ Close error:', err);
-      }
+      await closeSession(messages);
     }
     setIsOpen(false);
     setIsFullscreen(false);
@@ -557,47 +383,9 @@ Trích xuất JSON (CHỈ JSON):
         console.log('⚠️ Insight extraction skipped');
       }
 
-      let ctx = "";
-
-      if (currentUser && userProfile) {
-        ctx += `\n=== HỌC SINH ===\n`;
-        ctx += `Tên: ${currentUser.full_name || 'N/A'}\n`;
-        if (userProfile.class_name) ctx += `Lớp: ${userProfile.class_name}\n`;
-
-        if (studentJourney) {
-          ctx += `\n=== HÀNH TRÌNH ===\n`;
-          ctx += `Lần chat: ${studentJourney.conversation_count || 0}\n`;
-          ctx += `Độ rõ ràng: ${newClarity}% (${emotionalState})\n`;
-
-          if (studentJourney.milestones && studentJourney.milestones.length > 0) {
-            const recentMilestones = studentJourney.milestones.slice(-2);
-            ctx += `Milestones gần đây:\n`;
-            recentMilestones.forEach(m => ctx += `- ${m.description}\n`);
-          }
-        }
-
-        if (context?.scores && context.scores.length > 0) {
-          const v = context.scores.filter(s => typeof s.average_score === 'number');
-          if (v.length > 0) {
-            const gpa = (v.reduce((a, s) => a + s.average_score, 0) / v.length).toFixed(2);
-            ctx += `\n=== HỌC BẠ ===\n`;
-            ctx += `GPA: ${gpa}\n`;
-            const sorted = [...v].sort((a, b) => b.average_score - a.average_score);
-            ctx += `Mạnh: ${sorted.slice(0, 3).map(s => `${s.subject_name}(${s.average_score.toFixed(1)})`).join(', ')}\n`;
-          }
-        }
-
-        if (newInsights.interests.length > 0 || newInsights.goals.length > 0) {
-          ctx += `\n=== INSIGHTS ===\n`;
-          if (newInsights.interests.length > 0) ctx += `🎨 ${newInsights.interests.join(', ')}\n`;
-          if (newInsights.goals.length > 0) ctx += `🎯 ${newInsights.goals.join(', ')}\n`;
-          if (newInsights.values.length > 0) ctx += `💎 ${newInsights.values.join(', ')}\n`;
-          if (newInsights.concerns.length > 0) ctx += `💭 ${newInsights.concerns.join(', ')}\n`;
-          if (newInsights.personality_traits.length > 0) ctx += `⭐ ${newInsights.personality_traits.join(', ')}\n`;
-        }
-      }
-
-      const hist = messages.slice(-10).map(m => `${m.sender === 'user' ? 'Em' : 'Mình'}: ${m.text}`).join('\n\n');
+      // ✅ ENHANCED: Use comprehensive context builder
+      const ctx = buildAIContext(fullContext, newInsights, messages);
+      const hist = buildConversationHistory(messages, 10);
 
       const prompt = `BỐI CẢNH: AI Cố Vấn Đồng Hành - thấu hiểu, động viên, hướng dẫn học sinh.
 
@@ -654,14 +442,18 @@ TRẢ LỜI:`;
 
       const newMessages = [...messages, uMsg, bMsg];
 
+      // ✅ ENHANCED: Use new persistence hooks
       if (hasNewInsights) {
         console.log('🔄 Has new insights, updating journey...');
-        await updateJourney(newInsights, newMessages, newClarity, emotionalState);
+        const updatedJourney = await saveJourney(newInsights, newClarity, emotionalState, newMessages);
+        if (updatedJourney) {
+          setStudentJourney(prev => ({ ...prev, ...updatedJourney }));
+        }
       }
 
       if (newMessages.length % 3 === 0) {
         console.log('💾 Auto-save every 3 messages...');
-        saveSessionIncremental(newMessages, newInsights);
+        await saveSession(newMessages, newInsights, newClarity, conversationPhase);
       }
 
       if (messages.length === 15) {
@@ -850,15 +642,14 @@ TRẢ LỜI:`;
             <SmartSuggestions
               clarityScore={clarityScore}
               insights={extractedInsights}
-              academicScores={context?.scores || []}
-              hasTests={context?.tests?.length > 0}
+              academicScores={fullContext?.scores?.raw || []}
+              hasTests={fullContext?.stats?.hasTests || false}
               messageCount={messages.length}
               onSelect={(prompt) => {
-                // ✅ NEW: Auto-send AI response instead of setting user input
+                // ✅ Auto-send AI response instead of setting user input
                 setInputText('');
                 setIsTyping(true);
                 
-                // Add AI's question/prompt as a bot message
                 const botPromptMsg = {
                   id: Date.now(),
                   text: prompt,
