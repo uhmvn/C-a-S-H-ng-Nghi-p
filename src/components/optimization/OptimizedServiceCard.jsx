@@ -27,14 +27,18 @@ const OptimizedServiceCard = React.memo(({ service, index, ctaConfig, onClick })
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
         
-        <div className="absolute top-4 right-4 bg-indigo-600 text-white px-4 py-2 rounded-full text-sm font-bold shadow-lg">
-          {service.price.toLocaleString('vi-VN')}đ
-        </div>
+        {service.price && (
+          <div className="absolute top-4 right-4 bg-indigo-600 text-white px-4 py-2 rounded-full text-sm font-bold shadow-lg">
+            {service.price.toLocaleString('vi-VN')}đ
+          </div>
+        )}
 
-        <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm text-gray-800 px-3 py-1 rounded-full text-sm flex items-center gap-1">
-          <Clock className="w-3 h-3" />
-          {service.duration}
-        </div>
+        {service.duration && (
+          <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm text-gray-800 px-3 py-1 rounded-full text-sm flex items-center gap-1">
+            <Clock className="w-3 h-3" />
+            {service.duration}
+          </div>
+        )}
 
         {service.featured && (
           <div className="absolute top-4 left-4 bg-yellow-500 text-white px-3 py-1 rounded-full text-xs font-bold">
