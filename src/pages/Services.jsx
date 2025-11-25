@@ -52,12 +52,12 @@ export default function Services() {
   const navigate = useNavigate();
   const [activeFilter, setActiveFilter] = useState("all");
 
-  const { data: services = [], isLoading, error } = useQuery({
+  const { data: rawServices = [], isLoading, error } = useQuery({
     queryKey: ['services'],
     queryFn: async () => {
       try {
         const result = await base44.entities.Service.list('order');
-        console.log('✅ Services loaded:', result?.length || 0, result);
+        console.log('✅ Services raw data:', result?.length || 0, result);
         return result || [];
       } catch (err) {
         console.error('❌ Error loading services:', err);
@@ -68,6 +68,14 @@ export default function Services() {
     staleTime: 10 * 60 * 1000,
     cacheTime: 30 * 60 * 1000
   });
+
+  // Map services to flat structure
+  const services = useMemo(() => {
+    return rawServices.map(service => ({
+      id: service.id,
+      ...service.data
+    }));
+  }, [rawServices]);
 
   const urlParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
   

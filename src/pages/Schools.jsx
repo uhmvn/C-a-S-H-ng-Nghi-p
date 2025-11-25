@@ -41,12 +41,12 @@ export default function Schools() {
   ];
 
   // Fetch schools from database
-  const { data: schools = [], isLoading, error } = useQuery({
+  const { data: rawSchools = [], isLoading, error } = useQuery({
     queryKey: ['schools'],
     queryFn: async () => {
       try {
         const result = await base44.entities.School.list();
-        console.log('✅ Schools loaded:', result?.length || 0, result);
+        console.log('✅ Schools raw data:', result?.length || 0, result);
         return result || [];
       } catch (err) {
         console.error('❌ Error loading schools:', err);
@@ -57,6 +57,14 @@ export default function Schools() {
     staleTime: 30 * 60 * 1000,
     cacheTime: 60 * 60 * 1000
   });
+
+  // Map schools to flat structure
+  const schools = useMemo(() => {
+    return rawSchools.map(school => ({
+      id: school.id,
+      ...school.data
+    }));
+  }, [rawSchools]);
 
   const filteredSchools = useMemo(() => {
     console.log('🔍 Filtering schools:', {
