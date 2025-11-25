@@ -6,6 +6,7 @@ import { createPageUrl } from "@/utils";
 import Breadcrumb from "@/components/Breadcrumb";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
+import LazyImage from "@/components/optimization/LazyImage";
 
 const schoolTypes = [
   { key: "all", name: "Tất cả" },
@@ -44,6 +45,8 @@ export default function Schools() {
     queryKey: ['schools'],
     queryFn: () => base44.entities.School.list(),
     initialData: [],
+    staleTime: 30 * 60 * 1000,
+    cacheTime: 60 * 60 * 1000
   });
 
   const filteredSchools = useMemo(() => {
@@ -187,7 +190,7 @@ export default function Schools() {
               >
                 {/* Image */}
                 <div className="relative h-48 overflow-hidden">
-                  <img
+                  <LazyImage
                     src={school.image_url || "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=800&q=90"}
                     alt={school.name}
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"

@@ -6,6 +6,7 @@ import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import Breadcrumb from "@/components/Breadcrumb";
+import LazyImage from "@/components/optimization/LazyImage";
 
 const categories = [
   { key: "all", name: "Tất cả dịch vụ" },
@@ -54,7 +55,9 @@ export default function Services() {
   const { data: services = [], isLoading } = useQuery({
     queryKey: ['services'],
     queryFn: () => base44.entities.Service.list('order'),
-    initialData: []
+    initialData: [],
+    staleTime: 10 * 60 * 1000,
+    cacheTime: 30 * 60 * 1000
   });
 
   const urlParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
@@ -162,12 +165,10 @@ export default function Services() {
                     className="group bg-white rounded-3xl overflow-hidden shadow-lg will-change-transform cursor-pointer"
                   >
                     <div className="relative h-64 overflow-hidden">
-                      <img
+                      <LazyImage
                         src={service.image_url}
                         alt={service.alt_text || service.name}
                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-                        loading="lazy"
-                        decoding="async"
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                       
