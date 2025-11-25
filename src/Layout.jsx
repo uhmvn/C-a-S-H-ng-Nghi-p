@@ -2,14 +2,16 @@ import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { Compass, Phone, Mail, Linkedin, Facebook, MapPin, X, Menu, Users, LogOut, Settings, LayoutDashboard, User as UserIcon, ChevronDown } from "lucide-react";
-import ChatBot from "@/components/ChatBot";
-import BookingModal from "@/components/BookingModal";
+import React from "react";
+const ChatBot = React.lazy(() => import("@/components/ChatBot"));
+const BookingModal = React.lazy(() => import("@/components/BookingModal"));
 import ReviewWidget from "@/components/ReviewWidget";
 import SeoSchema from "@/components/SeoSchema";
 import LoadingScreen from "@/components/LoadingScreen";
 import BackToTop from "@/components/BackToTop";
 import PWAManifest from "@/components/pwa/PWAManifest";
 import PWAInstallPrompt from "@/components/pwa/PWAInstallPrompt";
+import PerformanceMonitor from "@/components/optimization/PerformanceMonitor";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 
@@ -43,7 +45,9 @@ export default function Layout({ children, currentPageName }) {
       }
     },
     initialData: [],
-    staleTime: 5 * 60 * 1000 // Cache 5 minutes
+    staleTime: 30 * 60 * 1000, // 30 minutes - rarely changes
+    cacheTime: 60 * 60 * 1000, // 1 hour
+    refetchOnWindowFocus: false
   });
 
   // Helper to get setting
@@ -247,6 +251,7 @@ export default function Layout({ children, currentPageName }) {
     <>
       <PWAManifest />
       <PWAInstallPrompt />
+      <PerformanceMonitor />
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 font-sans text-[length:var(--font-body)] leading-[1.618]">
         <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Inter:wght@300;400;500;600;700&display=swap');
@@ -784,13 +789,17 @@ export default function Layout({ children, currentPageName }) {
         </div>
       </footer>
 
-      <ChatBot />
+      <React.Suspense fallback={<div />}>
+        <ChatBot />
+      </React.Suspense>
       <BackToTop />
-      <BookingModal 
-        isOpen={isBookingOpen} 
-        onClose={handleCloseBookingModal}
-        initialService={initialService} 
-      />
+      <React.Suspense fallback={<div />}>
+        <BookingModal 
+          isOpen={isBookingOpen} 
+          onClose={handleCloseBookingModal}
+          initialService={initialService} 
+        />
+      </React.Suspense>
       </div>
       </>
       );
